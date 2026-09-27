@@ -15,12 +15,12 @@ A portable Windows helper for playing StarCraft II single-player campaigns in ul
 ## Requirements and compatibility
 
 - 64-bit Windows 10 or 11, .NET Framework 4.8, and Windows PowerShell 5.1.
-- **StarCraft II 5.0.16.97563**, running as `SC2_x64.exe` in fullscreen mode.
+- **StarCraft II (64-bit)**, running as `SC2_x64.exe` in fullscreen mode.
 - A supported widescreen display mode. Larger HUD sizes need enough horizontal space to fit.
 
-Other game builds are rejected. Install StarCraft II wherever you prefer; the helper identifies the running executable rather than assuming an installation directory.
+The helper does not reject a game solely because its version number changed. It retains executable, hook, and campaign-state checks. The current hooks use fixed memory addresses, so a game update that changes the internal layout can still stop the fix from working or cause a crash. Future-update compatibility is not guaranteed. Install StarCraft II wherever you prefer; the helper identifies the running executable rather than assuming an installation directory.
 
-The Terran campaign HUD has received the most visual testing. Campaign detection was also checked in a Zerg mission. Protoss campaigns, the epilogue, Nova Covert Ops, and all transport/cargo variants still need visual validation. Objectives and dialogs retain their normal size.
+Objectives and dialogs retain their normal size.
 
 **Single-player campaigns only.** Application requires both an offline gameplay-session flag and a map path under `Maps/Campaign/`. Signing into Battle.net is separate from that gameplay-session flag. These checks are not a guarantee against detection or account enforcement: this tool modifies game memory. It is not affiliated with or endorsed by Blizzard Entertainment.
 

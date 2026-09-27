@@ -12,7 +12,6 @@ public class SC2AutoStart {
  static bool Signature(IntPtr h,ulong address){byte[] wanted={0x48,0x8b,0xc4,0x48,0x89,0x58,0x08,0x55,0x56,0x57,0x41,0x54};var b=new byte[wanted.Length];UIntPtr n;if(!ReadProcessMemory(h,(IntPtr)(long)address,b,(UIntPtr)b.Length,out n)||n.ToUInt64()!=(ulong)b.Length)return false;for(int i=0;i<b.Length;i++)if(b[i]!=wanted[i])return false;return true;}
  public static void ValidateExecutable(string path,string version){
   if(!String.Equals(Path.GetFileName(path),"SC2_x64.exe",StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Select the 64-bit StarCraft II game.");
-  if(version!="5.0.16.97563")throw new InvalidOperationException("Unsupported game build. This release supports StarCraft II 5.0.16.97563.");
  }
  public class Result {public ulong Device,Code,State,VTable;public int Length;public double AttachedAfterMilliseconds;public bool ResourceAlreadyExisted;}
  public static Result Attach(int pid,string expectedExe,string recordPath,string stopPath,int timeoutMs,int width,int height){
@@ -29,7 +28,7 @@ public class SC2AutoStart {
    ulong device=ReadPtr(h,module+0x43D1E10);if(device==0||ReadPtr(h,device)!=table)device=ReadPtr(h,module+0x43D0E08);
    if(device!=0&&ReadPtr(h,device)==table){
     bool hadResource=ReadPtr(h,device+0x80)!=0;
-    string json=String.Format(CultureInfo.InvariantCulture,"{{\"GateRevision\":2,\"GamePid\":{0},\"Started\":\"{1}\",\"Build\":\"5.0.16.97563\",\"Device\":\"{2:X}\",\"OriginalVTable\":\"{3:X}\",\"VTable\":\"{4:X}\",\"Code\":\"{5:X}\",\"State\":\"{6:X}\",\"Length\":{7},\"TargetWidth\":{8},\"TargetHeight\":{9}}}",pid,started.ToString("o",CultureInfo.InvariantCulture),device,table,prepared.VTable,prepared.Code,prepared.State,prepared.Length,width,height);
+    string json=String.Format(CultureInfo.InvariantCulture,"{{\"GateRevision\":2,\"GamePid\":{0},\"Started\":\"{1}\",\"Build\":\"{10}\",\"Device\":\"{2:X}\",\"OriginalVTable\":\"{3:X}\",\"VTable\":\"{4:X}\",\"Code\":\"{5:X}\",\"State\":\"{6:X}\",\"Length\":{7},\"TargetWidth\":{8},\"TargetHeight\":{9}}}",pid,started.ToString("o",CultureInfo.InvariantCulture),device,table,prepared.VTable,prepared.Code,prepared.State,prepared.Length,width,height,process.MainModule.FileVersionInfo.FileVersion.Replace("\\","\\\\").Replace("\"","\\\""));
     File.WriteAllText(recordPath,json);
     SC2CampaignGate.Require(pid,module);
     SC2CampaignModeHook.SwapPointer(pid,device,table,prepared.VTable);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.1
+
+- Remove exact game-version rejection while retaining executable identity, native hook checks, and offline campaign restrictions.
+- Record the running game version in hook metadata.
+- Update compatibility documentation and remove the campaign testing overview.
+
 ## 1.6.0
 
 Release preparation for StarCraft II 5.0.16.97563.

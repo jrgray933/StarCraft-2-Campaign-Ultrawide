@@ -6,7 +6,6 @@ $hudInset=[SC2CampaignModeHook]::HudInset($TargetWidth,$TargetHeight)
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
 if($games.Count -ne 1){throw 'Open exactly one StarCraft II campaign session first.'}
 $game=$games[0]
-if($game.MainModule.FileVersionInfo.FileVersion -ne '5.0.16.97563'){throw 'This HUD helper supports only build 5.0.16.97563.'}
 $moduleBase=[System.UInt64]$game.MainModule.BaseAddress.ToInt64()
 function ReadBytes([System.UInt64]$address,[int]$size){$bytes=[SC2Memory]::Read($game.Id,$address,$size);if(!$bytes){throw 'Cannot read HUD state.'};return ,$bytes}
 function Ptr([System.UInt64]$address){[BitConverter]::ToUInt64((ReadBytes $address 8),0)}
@@ -63,7 +62,7 @@ if($Action -eq 'Enable'){
    }
   }
   $prepared=[SC2HudHook]::Prepare($game.Id,$owner,$originalTable,($moduleBase+0x16BCFC0),$commands.ToArray())
-  $record=[pscustomobject]@{GateRevision=2;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build='5.0.16.97563';TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Owner=$owner.ToString('X');Console=$console.ToString('X');OriginalVTable=$originalTable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length;Commands=@($commands | ForEach-Object {[pscustomobject]@{Frame=$_.Frame.ToString('X');Parent=$_.Parent.ToString('X');Side=$_.Side;Position=$_.Position;Offset=$_.Offset;OldPosition=$_.OldPosition;OldOffset=$_.OldOffset}})}
+  $record=[pscustomobject]@{GateRevision=2;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build=$game.MainModule.FileVersionInfo.FileVersion;TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Owner=$owner.ToString('X');Console=$console.ToString('X');OriginalVTable=$originalTable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length;Commands=@($commands | ForEach-Object {[pscustomobject]@{Frame=$_.Frame.ToString('X');Parent=$_.Parent.ToString('X');Side=$_.Side;Position=$_.Position;Offset=$_.Offset;OldPosition=$_.OldPosition;OldOffset=$_.OldOffset}})}
   $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $recordPath -Encoding UTF8
   if((Ptr ($gameUI+0xc68)) -ne $owner){throw 'Mission UI changed before attachment.'}
   WriteChecked $owner ([BitConverter]::GetBytes($originalTable)) ([BitConverter]::GetBytes($prepared.VTable))

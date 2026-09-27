@@ -17,7 +17,7 @@ public static class SC2CampaignGate {
  public static Status Check(int pid,ulong module){
   IntPtr h=IntPtr.Zero;var result=new Status();
   try{
-   using(var p=Process.GetProcessById(pid)){if(p.MainModule.FileVersionInfo.FileVersion!="5.0.16.97563"||(ulong)p.MainModule.BaseAddress.ToInt64()!=module){result.Reason="Unsupported game version.";return result;}}
+   using(var p=Process.GetProcessById(pid)){if(!String.Equals(System.IO.Path.GetFileName(p.MainModule.FileName),"SC2_x64.exe",StringComparison.OrdinalIgnoreCase)||(ulong)p.MainModule.BaseAddress.ToInt64()!=module){result.Reason="Game executable identity changed.";return result;}}
    h=OpenProcess(0x410,false,pid);if(h==IntPtr.Zero)return result;
    // Repeat the complete observation to reject a changing mission/session.
    string last=null;ulong previousManager=0,previousInfo=0;

@@ -6,7 +6,6 @@ $recordPath=Join-Path $PSScriptRoot 'engine-reset-session.json'
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
 if($games.Count -ne 1){throw 'Open exactly one StarCraft II session first'}
 $game=$games[0]
-if($game.MainModule.FileVersionInfo.FileVersion -ne '5.0.16.97563'){throw 'Only build 5.0.16.97563 is supported'}
 $base=$game.MainModule.BaseAddress.ToInt64()
 function ReadBytes([System.UInt64]$address,[int]$size){$bytes=[SC2Memory]::Read($game.Id,$address,$size);if(!$bytes){throw 'Cannot read graphics state'};return ,$bytes}
 function Ptr([System.UInt64]$address){[BitConverter]::ToUInt64((ReadBytes $address 8),0)}
@@ -33,7 +32,7 @@ if($Action -eq 'Install'){
   if(($packed -band 0x3fff) -lt 1280 -or (($packed -shr 14) -band 0x3fff) -lt 720){throw 'Choose a widescreen fullscreen mode in Graphics options first'}
   if((U32 ($resource+0x80)) -band 255){throw 'Use fullscreen display mode'}
   $prepared=[SC2CampaignModeHook]::Prepare($game.Id,$originalVtable,$TargetWidth,$TargetHeight)
-  $record=[pscustomobject]@{GateRevision=2;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build='5.0.16.97563';TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Device=$device.ToString('X');OriginalVTable=$originalVtable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length}
+  $record=[pscustomobject]@{GateRevision=2;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build=$game.MainModule.FileVersionInfo.FileVersion;TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Device=$device.ToString('X');OriginalVTable=$originalVtable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length}
   $record | ConvertTo-Json | Set-Content -LiteralPath $recordPath
   [SC2CampaignGate]::Require($game.Id,[System.UInt64]$base)
   [SC2CampaignModeHook]::SwapPointer($game.Id,$device,$originalVtable,$prepared.VTable)

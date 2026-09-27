@@ -4,7 +4,6 @@ if(-not ('SC2HudScale' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'C
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
 if($games.Count -ne 1){return [pscustomobject]@{Active=$false;Ready=$true;ScalePercent=100}}
 $game=$games[0];$moduleBase=[System.UInt64]$game.MainModule.BaseAddress.ToInt64()
-if($game.MainModule.FileVersionInfo.FileVersion -ne '5.0.16.97563'){throw 'This version of StarCraft II is not supported.'}
 function Bytes([System.UInt64]$a,[int]$n){$b=[SC2Memory]::Read($game.Id,$a,$n);if(!$b){throw 'Campaign HUD is not ready.'};return ,$b}
 function Ptr([System.UInt64]$a){[BitConverter]::ToUInt64((Bytes $a 8),0)}
 function U32([System.UInt64]$a){[BitConverter]::ToUInt32((Bytes $a 4),0)}

@@ -4,7 +4,7 @@ Build and run the checks described in [README.md](README.md). Use 64-bit Windows
 
 ## Runtime constraints
 
-- Preserve the exact supported-build checks and both campaign restrictions. Unknown or unreadable eligibility must reject application.
+- Preserve executable identity and native hook validation, and both campaign restrictions. Do not reject a game solely by its version number. Unknown or unreadable eligibility must reject application.
 - Do not test changes in multiplayer or other non-campaign sessions. Test eligibility rejection with the local mocks.
 - HUD changes must remain reversible, must not accumulate scaling across updates, and must validate frame identity before restoration.
 - Call UI operations through the normal game UI path. Retain native allocations until game exit if callbacks could still be executing.
