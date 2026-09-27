@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <ProjectGuid>{4968DEBC-0C50-49AB-942A-00E221985BA4}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Campaign Ultrawide</AssemblyName>
+    <RootNamespace>CampaignUltrawide</RootNamespace>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>build\</OutputPath>
+    <Optimize>true</Optimize>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Web.Extensions" />
+    <Compile Include="Launcher.cs" />
+    <EmbeddedResource Include="Engine\Auto-Campaign.ps1"><LogicalName>Engine.Auto-Campaign.ps1</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\Campaign-Ultrawide.ps1"><LogicalName>Engine.Campaign-Ultrawide.ps1</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\CampaignDisplayRefresh.cs"><LogicalName>Engine.CampaignDisplayRefresh.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\CampaignGate.cs"><LogicalName>Engine.CampaignGate.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\CampaignModeHook.cs"><LogicalName>Engine.CampaignModeHook.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\Centered-HUD.ps1"><LogicalName>Engine.Centered-HUD.ps1</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\Control.ps1"><LogicalName>Engine.Control.ps1</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\MemoryRead.cs"><LogicalName>Engine.MemoryRead.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\SC2AutoStart.cs"><LogicalName>Engine.SC2AutoStart.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\SC2HudHook.cs"><LogicalName>Engine.SC2HudHook.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\SC2HudScale.cs"><LogicalName>Engine.SC2HudScale.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\Scaled-HUD.ps1"><LogicalName>Engine.Scaled-HUD.ps1</LogicalName></EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

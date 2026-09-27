@@ -1,0 +1,16 @@
+/build/
+/bin/
+/obj/
+/.vs/
+*.user
+*.suo
+*.exe
+*.dll
+*.pdb
+*.zip
+*.log
+*-test-results*.txt
+*.backup
+*.bak
+Thumbs.db
+.DS_Store

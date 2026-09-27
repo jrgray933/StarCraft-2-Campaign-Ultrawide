@@ -1,0 +1,26 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build, test, and package
+        shell: powershell
+        run: .\Release.ps1 -SkipUi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Starcraft-2-Campaign-Ultrawide
+          path: build/release/*
+          if-no-files-found: error
