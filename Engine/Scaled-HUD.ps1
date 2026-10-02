@@ -1,6 +1,6 @@
 ﻿param([ValidateSet('Enable','Disable','Status')][string]$Action='Status',[int]$TargetWidth=3440,[int]$TargetHeight=1440,[int]$ScalePercent=100)
 $ErrorActionPreference='Stop'
-if(-not ('SC2HudScale' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))}
+if(-not ('SC2HudScale' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))}
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
 if($games.Count -ne 1){return [pscustomobject]@{Active=$false;Ready=$true;ScalePercent=100}}
 $game=$games[0];$moduleBase=[System.UInt64]$game.MainModule.BaseAddress.ToInt64()

@@ -17,8 +17,8 @@ function Write-Zip([string]$path,[hashtable]$files){
 $binary=@{'Campaign Ultrawide.exe'=$exe}
 foreach($name in @('README.md','LICENSE','CHANGELOG.md')){$binary[$name]=Join-Path $PSScriptRoot $name}
 $source=@{}
-foreach($name in @('Launcher.cs','Build.ps1','Release.ps1','Starcraft-2-Campaign-Ultrawide.csproj','README.md','LICENSE','CHANGELOG.md','CONTRIBUTING.md','.gitignore','.gitattributes','.editorconfig')){$source['Starcraft-2-Campaign-Ultrawide/'+$name]=Join-Path $PSScriptRoot $name}
-foreach($folder in @('Engine','Tests','.github')){
+foreach($name in @('Launcher.cs','Build.ps1','Release.ps1','Starcraft-2-Campaign-Ultrawide.csproj','README.md','LICENSE','CHANGELOG.md','.gitignore','.gitattributes','.editorconfig')){$source['Starcraft-2-Campaign-Ultrawide/'+$name]=Join-Path $PSScriptRoot $name}
+foreach($folder in @('Engine','Tests','Assets','.github')){
     foreach($file in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $folder) -Recurse -File -Force){
         $relative=$file.FullName.Substring($PSScriptRoot.Length+1).Replace('\','/')
         $source['Starcraft-2-Campaign-Ultrawide/'+$relative]=$file.FullName
@@ -31,3 +31,6 @@ Write-Zip $sources $source
 $lines=foreach($file in @($windows,$sources)){(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()+'  '+[IO.Path]::GetFileName($file)}
 $lines | Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS.txt') -Encoding ASCII
 Write-Output ('Release packages: '+$output)
+
+$releaseNotes=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'CHANGELOG.md') -Raw
+$releaseNotes.Substring($releaseNotes.IndexOf('## ')).Trim() | Set-Content -LiteralPath (Join-Path $output 'Release-notes.md') -Encoding UTF8

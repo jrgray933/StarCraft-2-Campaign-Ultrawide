@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public class SC2CampaignModeHook {
@@ -25,7 +25,8 @@ public class SC2CampaignModeHook {
  public static byte[] BuildMode(ulong state,ulong original,int width,int height){
   return BuildMode(state,original,width,height,0,0);
  }
- public static byte[] BuildMode(ulong state,ulong original,int width,int height,ulong sessionGlobal,ulong map){
+ public static byte[] BuildMode(ulong state,ulong original,int width,int height,ulong sessionGlobal,ulong map){return BuildMode(state,original,width,height,sessionGlobal,map,0);}
+ public static byte[] BuildMode(ulong state,ulong original,int width,int height,ulong sessionGlobal,ulong map,ulong hubScene){
   ValidateTarget(width,height);
   var denied=new List<int>();
   var c=new List<byte>();var skips=new List<int>();Bytes(c,"49 BA");c.AddRange(BitConverter.GetBytes(state));
@@ -40,7 +41,7 @@ public class SC2CampaignModeHook {
   Bytes(c,"3D E0 10 00 00");skips.Add(Jump(c,"0F 87"));
   Bytes(c,"45 6B DB 09 C1 E0 04 41 39 C3");skips.Add(Jump(c,"0F 82"));
   Bytes(c,"D1 E0 41 39 C3");skips.Add(Jump(c,"0F 87"));
-  if(sessionGlobal!=0)SC2CampaignGate.Emit(c,denied,sessionGlobal,map);
+  if(sessionGlobal!=0){if(hubScene!=0)SC2DisplayGate.Emit(c,denied,sessionGlobal,map,hubScene);else SC2CampaignGate.Emit(c,denied,sessionGlobal,map);}
   // Keep the last unmodified fullscreen request for a later normal reset.
   Bytes(c,"81 7A 20");c.AddRange(BitConverter.GetBytes(width));int different=Jump(c,"0F 85");
   Bytes(c,"81 7A 24");c.AddRange(BitConverter.GetBytes(height));int same=Jump(c,"0F 84");
@@ -64,14 +65,14 @@ public class SC2CampaignModeHook {
  public static Prepared Prepare(int pid,ulong originalVtable){return Prepare(pid,originalVtable,3440,1440);}
  public static Prepared Prepare(int pid,ulong originalVtable,int width,int height){
   ValidateTarget(width,height);
-  ulong module=originalVtable-0x2DB8098;SC2CampaignGate.Require(pid,module);
+  ulong module=originalVtable-0x2DB8098;SC2DisplayGate.Require(pid,module);
   var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("OpenProcess failed");IntPtr data=IntPtr.Zero,code=IntPtr.Zero;bool ready=false;
   try{
    // Preserve the RTTI prefix and all 51 methods; the table ends at offset 0x198.
    var table=Read(h,originalVtable-8,0x1A0);ulong original=BitConverter.ToUInt64(table,0x30);
    data=VirtualAllocEx(h,IntPtr.Zero,(UIntPtr)4096,0x3000,4);if(data==IntPtr.Zero)throw Error("State allocation failed");
    code=VirtualAllocEx(h,IntPtr.Zero,(UIntPtr)4096,0x3000,4);if(code==IntPtr.Zero)throw Error("Code allocation failed");
-   ulong state=(ulong)data.ToInt64(),entry=(ulong)code.ToInt64();var modeBytes=BuildMode(state,original,width,height,module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva);
+   ulong state=(ulong)data.ToInt64(),entry=(ulong)code.ToInt64();var modeBytes=BuildMode(state,original,width,height,module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva,module+SC2HubGate.SceneRva);
    Write(h,state,BitConverter.GetBytes(1));Write(h,entry,modeBytes);
    Array.Copy(BitConverter.GetBytes(entry),0,table,0x30,8);Write(h,state+0x100,table);
    uint old;if(!VirtualProtectEx(h,code,(UIntPtr)4096,0x20,out old))throw Error("Executable protection failed");

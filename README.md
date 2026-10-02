@@ -1,80 +1,55 @@
-# Starcraft-2-Campaign-Ultrawide
+# StarCraft II Campaign Ultrawide
 
-A portable Windows helper for playing StarCraft II single-player campaigns in ultrawide, with a centered, adjustable bottom HUD.
+Play StarCraft II single-player campaigns in ultrawide with an adjustable HUD, farther camera zoom, and wider hub views.
+
+[Download the latest release](https://github.com/jrgray933/StarCraft-2-Campaign-Ultrawide/releases/latest)
 
 ## Features
 
-- Automatic resolution and HUD setup when a supported campaign mission is detected.
-- Resolution selection using the primary display's available modes.
-- Bottom HUD scaling from **50% to 125%**, in **5% increments**.
-- Centered minimap, unit panel, command card, and menu buttons, with the battlefield visible in the bottom corners.
-- Scaled cargo slots and correctly positioned production queues.
-- Detection of an already-running game, plus a **Recheck game** button.
-- Session-only changes and options to restore the original HUD and resolution.
+- Automatic ultrawide setup when you enter a campaign mission or hub.
+- Resolution selection from your display's available modes.
+- Centered bottom HUD with **50–100% scaling** in **5% increments**. Objectives and dialogs keep their normal size.
+- Aligned minimap, unit panel, command card, menu buttons, cargo slots, and production queues. The bottom corners show the battlefield.
+- **Max zoom out:** Default or **+10% to +100%** additional camera distance, in **10% increments**.
+- **Zoom steps:** **5 to 20** evenly spaced positions between the closest view and your selected maximum.
+- Shadow distance adjusts automatically with the selected maximum zoom.
+- **Hub Scale:** Off, Fit, or Expanded. Fit shows more scenery without cropping the normal framing; Expanded adds another 20 degrees of horizontal field of view. Mission framing is controlled separately.
+- Light and dark themes, saved settings, and a transparent app icon.
+- Detects an already-running game and includes **Recheck game**.
 
-## Requirements and compatibility
+## Getting started
+
+1. Download the **windows-x64.zip** release and extract it to a writable folder.
+2. Run **Campaign Ultrawide.exe**.
+3. Choose your resolution, HUD size, and camera settings, then click **Enable**.
+4. Launch StarCraft II through Battle.net and load a campaign mission. If the game is already running, setup starts automatically.
+5. Return to the game for a few seconds to let the changes apply.
+
+Use fullscreen mode. The helper does not launch Battle.net or the game, and you do not need to change the game's resolution manually.
+
+You can adjust HUD size, zoom, zoom steps, and hub framing while playing. Close the game before choosing a different resolution. **Default** restores the normal maximum zoom distance; **Off** restores normal hub framing.
+
+## Controls
+
+- **Recheck game** restarts setup if the game is not detected or changes have stopped applying.
+- **Stop automatic setup** stops monitoring and restores normal camera settings. The current resolution and HUD remain until you restore them or close the game.
+- **More options** provides HUD and resolution restore controls and the activity log.
+- Closing the window while monitoring keeps the helper in the notification area. Use its **Exit** command to quit.
+
+## Requirements
 
 - 64-bit Windows 10 or 11, .NET Framework 4.8, and Windows PowerShell 5.1.
-- **StarCraft II (64-bit)**, running as `SC2_x64.exe` in fullscreen mode.
-- A supported widescreen display mode. Larger HUD sizes need enough horizontal space to fit.
+- The 64-bit version of StarCraft II, in fullscreen mode.
+- A widescreen resolution supported by your display.
 
-The helper does not reject a game solely because its version number changed. It retains executable, hook, and campaign-state checks. The current hooks use fixed memory addresses, so a game update that changes the internal layout can still stop the fix from working or cause a crash. Future-update compatibility is not guaranteed. Install StarCraft II wherever you prefer; the helper identifies the running executable rather than assuming an installation directory.
+**Single-player campaigns only.** Signing into Battle.net is fine; multiplayer is not supported. This tool modifies game memory, so account enforcement cannot be ruled out. Use at your own risk. It is not affiliated with or endorsed by Blizzard Entertainment.
 
-Objectives and dialogs retain their normal size.
+Game updates may require an updated helper. StarCraft II can be installed in any folder.
 
-**Single-player campaigns only.** Application requires both an offline gameplay-session flag and a map path under `Maps/Campaign/`. Signing into Battle.net is separate from that gameplay-session flag. These checks are not a guarantee against detection or account enforcement: this tool modifies game memory. It is not affiliated with or endorsed by Blizzard Entertainment.
+## Updating
 
-## Use
-
-1. Download the Windows release ZIP from this repository's Releases page and extract it to a writable folder.
-2. Run **Campaign Ultrawide.exe**. No installation in the game directory is necessary.
-3. Choose your resolution and bottom HUD size, then click **Enable**. If the game is already open, setup starts automatically.
-4. Launch StarCraft II yourself, load a campaign mission, and leave the mission visible for a few seconds.
-
-The helper applies the resolution and HUD without manual resolution toggles. Change HUD size while enabled; return to the mission to see the result. Close StarCraft II before changing the selected resolution.
-
-If setup stalls, choose **Recheck game**. **Stop automatic setup** stops monitoring but leaves the current session changes in place. **More options** includes restore controls and the activity log. Closing the window while monitoring keeps the helper in the notification area; use its **Exit** command to quit.
-
-Before upgrading the helper, close both the game and the helper. Existing injected session changes cannot be transferred automatically between engine versions. Closing the game removes all session changes.
-
-Settings and extracted runtime files are stored under `%LOCALAPPDATA%\SC2CampaignUltrawide`. Save games and game installation files are not changed. Leaving campaign blocks further application; an existing resolution can remain until the next graphics reset or game exit.
-
-## Build
-
-From a checkout, run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1
-```
-
-Output: `build/Campaign Ultrawide.exe`. The build uses the .NET Framework compiler included with Windows and embeds exactly the required engine files. There are no downloaded package dependencies.
-
-For Visual Studio, open `Starcraft-2-Campaign-Ultrawide.csproj` with the .NET Framework 4.8 targeting pack installed. Use the **x64 / Release** configuration. `Build.ps1` is the reference release build.
-
-## Test and package
-
-```powershell
-# Native mock tests, eligibility checks, and interactive layout tests
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Run.ps1
-
-# Headless environment (no interactive desktop)
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Tests\Run.ps1 -SkipUi
-
-# Build, test, then produce release ZIPs and SHA-256 checksums
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1
-```
-
-Tests execute against local mock memory, not a running game's memory. Layout tests open a temporary test window. Test output and release packages go in ignored build directories. GitHub Actions builds, runs the headless checks, and uploads packages as workflow artifacts; it does not publish a release automatically.
-
-## Project layout
-
-- `Launcher.cs`: Windows Forms interface, settings, status, and worker management.
-- `Engine/`: campaign eligibility, resolution refresh, native HUD callbacks, and worker scripts. C# engine sources are embedded and compiled by the worker at runtime.
-- `Tests/`: native eligibility tests and the test runner. Additional low-level mock tests live beside the engine code they exercise.
-- `Build.ps1` / `Release.ps1`: repeatable build and packaging commands.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for changes and test expectations, and [CHANGELOG.md](CHANGELOG.md) for release notes.
+Close the game and helper before replacing the application with a newer release. Your settings are saved under `%LOCALAPPDATA%\SC2CampaignUltrawide`. The helper does not change your saves or game installation files. Closing the game removes its session changes.
 
 ## License
 
-[MIT](LICENSE). StarCraft II and related names are trademarks of their respective owners. No game assets or game binaries are included.
+[MIT](LICENSE). StarCraft II and related names are trademarks of their respective owners.

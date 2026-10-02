@@ -1,6 +1,6 @@
 ﻿param([ValidateSet('Install','Status','Disable')][string]$Action='Status',[int]$TargetWidth=3440,[int]$TargetHeight=1440)
 $ErrorActionPreference='Stop'
-if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
+if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
 [SC2CampaignModeHook]::ValidateTarget($TargetWidth,$TargetHeight)
 $recordPath=Join-Path $PSScriptRoot 'engine-reset-session.json'
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
@@ -20,8 +20,8 @@ if(Test-Path -LiteralPath $recordPath){
  if($candidate.GamePid -eq $game.Id -and ([datetime]$candidate.Started).ToUniversalTime().Ticks -eq $game.StartTime.ToUniversalTime().Ticks){$record=$candidate}
 }
 if($Action -eq 'Install'){
- [SC2CampaignGate]::Require($game.Id,[System.UInt64]$base)
- if($record -and $record.GateRevision -ne 2){throw 'Close StarCraft II before using the updated campaign restrictions.'}
+ [SC2DisplayGate]::Require($game.Id,[System.UInt64]$base)
+ if($record -and $record.GateRevision -ne 3){throw 'Close StarCraft II before using the updated campaign restrictions.'}
  if($record -and (Ptr $device) -eq (Hex $record.VTable)){Write-Output 'Campaign ultrawide wrapper is already attached.'}
  else{
   if((Ptr $device) -ne $originalVtable){throw 'Unexpected graphics device type'}
@@ -32,9 +32,9 @@ if($Action -eq 'Install'){
   if(($packed -band 0x3fff) -lt 1280 -or (($packed -shr 14) -band 0x3fff) -lt 720){throw 'Choose a widescreen fullscreen mode in Graphics options first'}
   if((U32 ($resource+0x80)) -band 255){throw 'Use fullscreen display mode'}
   $prepared=[SC2CampaignModeHook]::Prepare($game.Id,$originalVtable,$TargetWidth,$TargetHeight)
-  $record=[pscustomobject]@{GateRevision=2;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build=$game.MainModule.FileVersionInfo.FileVersion;TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Device=$device.ToString('X');OriginalVTable=$originalVtable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length}
+  $record=[pscustomobject]@{GateRevision=3;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build=$game.MainModule.FileVersionInfo.FileVersion;TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Device=$device.ToString('X');OriginalVTable=$originalVtable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length}
   $record | ConvertTo-Json | Set-Content -LiteralPath $recordPath
-  [SC2CampaignGate]::Require($game.Id,[System.UInt64]$base)
+  [SC2DisplayGate]::Require($game.Id,[System.UInt64]$base)
   [SC2CampaignModeHook]::SwapPointer($game.Id,$device,$originalVtable,$prepared.VTable)
   Write-Output 'Resolution enabled. Change the fullscreen resolution in Graphics options once to apply your selection.'
  }

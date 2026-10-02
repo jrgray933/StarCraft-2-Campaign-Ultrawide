@@ -1,7 +1,13 @@
-﻿$ErrorActionPreference='Stop'
+$ErrorActionPreference='Stop'
 if(-not [Environment]::Is64BitProcess -or $PSVersionTable.PSEdition -ne 'Desktop'){throw 'Use 64-bit Windows PowerShell 5.1.'}
 $engine=Join-Path (Split-Path -Parent $PSScriptRoot) 'Engine'
-Add-Type -Path @((Join-Path $engine 'CampaignGate.cs'),(Join-Path $engine 'CampaignModeHook.cs'),(Join-Path $engine 'SC2HudScale.cs'),(Join-Path $engine 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'CampaignGateTests.cs'))
+Add-Type -Path @((Join-Path $engine 'CampaignGate.cs'),(Join-Path $engine 'HubCamera.cs'),(Join-Path $engine 'MissionZoom.cs'),(Join-Path $engine 'MemoryRead.cs'),(Join-Path $engine 'CampaignModeHook.cs'),(Join-Path $engine 'SC2HudScale.cs'),(Join-Path $engine 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'CampaignGateTests.cs'),(Join-Path $PSScriptRoot 'HubCameraTests.cs'),(Join-Path $PSScriptRoot 'AutoStartTests.cs'),(Join-Path $PSScriptRoot 'HudTextTests.cs'),(Join-Path $PSScriptRoot 'MissionZoomTests.cs'))
+[MissionZoomTests]::Run()
+[SC2HudScale]::DynamicTextSelfTest()
+[SC2HudScale]::TextGateSelfTest()
+[SC2HudScale]::TextRestoreSelfTest()
+[AutoStartTests]::Run()
+[HubCameraTests]::Run()
 [CampaignGateTests]::Run()
 [CampaignGateTests]::RunQueue()
 [CampaignGateTests]::RunCargo()

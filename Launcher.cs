@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using System.IO;
 
@@ -30,7 +30,7 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyDescription("Single-player campaign display helper")]
 
-[assembly: AssemblyVersion("1.6.1.0")]
+[assembly: AssemblyVersion("1.8.0.0")]
 
 static class Engine {
 
@@ -52,7 +52,7 @@ static class Engine {
 
   }
 
-  if(files.Count!=12 || !files.ContainsKey("CampaignGate.cs") || !files.ContainsKey("CampaignDisplayRefresh.cs")) throw new Exception("The embedded engine is incomplete.");
+  if(files.Count!=14 || !files.ContainsKey("CampaignGate.cs") || !files.ContainsKey("CampaignDisplayRefresh.cs") || !files.ContainsKey("HubCamera.cs")) throw new Exception("The embedded engine is incomplete.");
 
   string version;
 
@@ -131,6 +131,7 @@ static class Engine {
  internal static string ReadyDetail(Dictionary<string,object> state){
   object detail;var d=state.TryGetValue("Detail",out detail)?detail as Dictionary<string,object>:null;object width,height,hud,scale;
   if(d==null||!d.TryGetValue("Width",out width)||width==null||!d.TryGetValue("Height",out height)||height==null)return "Your display and HUD are ready.";
+  if(d.ContainsKey("Hub")&&Convert.ToBoolean(d["Hub"]))return width+" \u00d7 "+height;
   d.TryGetValue("Hud",out hud);d.TryGetValue("HudScale",out scale);
   return width+" \u00d7 "+height+(Convert.ToString(hud)=="Standard"?" \u00b7 Standard HUD":" \u00b7 HUD "+(scale==null?"100":Convert.ToString(scale))+"% \u00b7 Full battlefield view");
  }
@@ -152,8 +153,8 @@ static class Engine {
 
 sealed class Resolution {
 
- public int Width {get;set;} public int Height {get;set;} public int HudScale {get;set;}
- public Resolution(){HudScale=100;}
+ public int Width {get;set;} public int Height {get;set;} public int HudScale {get;set;} public int MaxZoom {get;set;} public int ZoomSteps {get;set;} public string HubScale {get;set;} public string Theme {get;set;}
+ public Resolution(){ZoomSteps=5;HudScale=100;HubScale="Off";Theme="Light";}
 
  public bool Desktop {get;set;}
 
@@ -215,13 +216,20 @@ class Launcher : Form {
 
  Button play,stop,more;
 
- ComboBox resolutions=new ComboBox(),hudSizes=new ComboBox();
+ ComboBox resolutions=new ComboBox(),hudSizes=new ComboBox(),hubScales=new ComboBox(),themes=new ComboBox(),maxZoom=new ComboBox(),zoomSteps=new ComboBox();
+ string ThemeChoice {get{return themes.SelectedItem as string??"Light";}}
+ bool Dark {get{return ThemeChoice=="Dark";}}
+ Control statusCard;
+ string HubScale {get{return hubScales.SelectedItem as string??"Off";}}
+ int ZoomSteps {get{return 5+Math.Max(0,zoomSteps.SelectedIndex);}}
+ int MaxZoom {get{return Math.Max(0,maxZoom.SelectedIndex)*10;}}
  int HudScale {get{return hudSizes.SelectedIndex<0?100:50+5*hudSizes.SelectedIndex;}}
  bool ScaleFits {get{return Selected==null||Selected.Width*9L*100>=Selected.Height*16L*HudScale;}}
 
  FlowLayoutPanel options;
 
  NotifyIcon tray=new NotifyIcon();
+ Icon appIcon;
 
  System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
 
@@ -242,7 +250,7 @@ class Launcher : Form {
 
  Resolution Selected {get{return resolutions.SelectedItem as Resolution;}}
 
- static Button Button(string text,EventHandler action){var b=new Button {Text=text,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Padding=new Padding(13,7,13,7),Margin=new Padding(0,0,10,8)};b.Click+=action;return b;}
+ static Button Button(string text,EventHandler action){var b=new ThemeButton {Text=text,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Padding=new Padding(13,7,13,7),Margin=new Padding(0,0,10,8)};b.Click+=action;return b;}
 
  static Label TextLabel(string text,float size,bool bold){return new Label {Text=text,AutoSize=true,MaximumSize=new Size(590,0),Font=new Font("Segoe UI",size,bold?FontStyle.Bold:FontStyle.Regular),Margin=new Padding(0,0,0,12)};}
 
@@ -250,9 +258,11 @@ class Launcher : Form {
 
  internal Launcher(bool test) {
 
+  using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("Application.Icon"))using(var loaded=new Icon(stream)){appIcon=(Icon)loaded.Clone();}
+  Icon=appIcon;
   smoke=test;Text="StarCraft II Campaign Ultrawide";Font=new Font("Segoe UI",10);AutoScaleDimensions=new SizeF(96,96);AutoScaleMode=AutoScaleMode.Dpi;
 
-  ClientSize=new Size(680,620);MinimumSize=new Size(650,650);StartPosition=FormStartPosition.CenterScreen;
+  ClientSize=new Size(680,690);MinimumSize=new Size(650,720);StartPosition=FormStartPosition.CenterScreen;
 
   var scroll=new Panel {Dock=DockStyle.Fill,AutoScroll=true};
 
@@ -270,8 +280,11 @@ class Launcher : Form {
 
   available=DisplayModes.Available();foreach(var r in available)resolutions.Items.Add(r);if(available.Count>0)resolutions.SelectedIndex=0;
 
-  for(int scale=50;scale<=125;scale+=5)hudSizes.Items.Add(scale+"%");hudSizes.SelectedIndex=10;
-  try {if(File.Exists(settingsPath)){var saved=new JavaScriptSerializer().Deserialize<Resolution>(File.ReadAllText(settingsPath));var match=saved==null?null:available.FirstOrDefault(r=>r.Width==saved.Width&&r.Height==saved.Height);if(match!=null)resolutions.SelectedItem=match;if(saved!=null&&saved.HudScale>=50&&saved.HudScale<=125&&saved.HudScale%5==0)hudSizes.SelectedIndex=(saved.HudScale-50)/5;}}catch(IOException){}catch(ArgumentException){}
+  maxZoom.Items.Add("Default");for(int zoom=10;zoom<=100;zoom+=10)maxZoom.Items.Add("+"+zoom+"%");maxZoom.SelectedIndex=0;for(int steps=5;steps<=20;steps++)zoomSteps.Items.Add(steps.ToString());zoomSteps.SelectedIndex=0;
+  themes.Items.AddRange(new object[]{"Light","Dark"});themes.SelectedIndex=0;
+  hubScales.Items.AddRange(new object[]{"Off","Fit","Expanded"});hubScales.SelectedIndex=0;
+  for(int scale=50;scale<=100;scale+=5)hudSizes.Items.Add(scale+"%");hudSizes.SelectedIndex=10;
+  try {if(File.Exists(settingsPath)){var saved=new JavaScriptSerializer().Deserialize<Resolution>(File.ReadAllText(settingsPath));var match=saved==null?null:available.FirstOrDefault(r=>r.Width==saved.Width&&r.Height==saved.Height);if(match!=null)resolutions.SelectedItem=match;if(saved!=null&&saved.HudScale>=50&&saved.HudScale<=125&&saved.HudScale%5==0)hudSizes.SelectedIndex=(Math.Min(100,saved.HudScale)-50)/5;if(saved!=null&&hubScales.Items.Contains(saved.HubScale??"Off"))hubScales.SelectedItem=saved.HubScale??"Off";if(saved!=null&&saved.MaxZoom>=0&&saved.MaxZoom<=200&&saved.MaxZoom%10==0)maxZoom.SelectedIndex=Math.Min(100,saved.MaxZoom)/10;if(saved!=null&&saved.ZoomSteps>=5&&saved.ZoomSteps<=20)zoomSteps.SelectedIndex=saved.ZoomSteps-5;if(saved!=null&&saved.Theme=="Dark")themes.SelectedIndex=1;}}catch(IOException){}catch(ArgumentException){}
 
   resolutions.SelectedIndexChanged+=(s,e)=>{if(!initializing){SaveSelection();notice="";RefreshState();}};row(resolutions);
 
@@ -280,8 +293,39 @@ class Launcher : Form {
   row(TextLabel("Bottom HUD size",10,true));hudSizes.DropDownStyle=ComboBoxStyle.DropDownList;hudSizes.Dock=DockStyle.Fill;hudSizes.Margin=new Padding(0,0,0,18);
   hudSizes.SelectedIndexChanged+=(s,e)=>{if(!initializing){SaveSelection();notice="";RefreshState();}};row(hudSizes);
 
+  var zoomOptions=new TableLayoutPanel {ColumnCount=2,RowCount=2,AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,0,0,18)};
+  zoomOptions.RowStyles.Add(new RowStyle(SizeType.AutoSize));zoomOptions.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+  zoomOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,65));zoomOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,35));
+  zoomOptions.Controls.Add(TextLabel("Max zoom out",10,true),0,0);zoomOptions.Controls.Add(TextLabel("Zoom steps",10,true),1,0);
+  maxZoom.DropDownStyle=ComboBoxStyle.DropDownList;maxZoom.Dock=DockStyle.Fill;maxZoom.Margin=new Padding(0,0,16,4);maxZoom.AccessibleName="Max zoom out";
+  zoomSteps.DropDownStyle=ComboBoxStyle.DropDownList;zoomSteps.Dock=DockStyle.Fill;zoomSteps.Margin=new Padding(0,0,0,4);zoomSteps.AccessibleName="Zoom steps";
+  maxZoom.SelectedIndexChanged+=(s,e)=>{if(!initializing){SaveSelection();notice="";RefreshState();}};
+  zoomSteps.SelectedIndexChanged+=(s,e)=>{if(!initializing){SaveSelection();notice="";RefreshState();}};
+  zoomOptions.Controls.Add(maxZoom,0,1);zoomOptions.Controls.Add(zoomSteps,1,1);
+  Action sizeZoomOptions=()=>{int height=Math.Max(maxZoom.Height+maxZoom.Margin.Vertical,zoomSteps.Height+zoomSteps.Margin.Vertical);var style=zoomOptions.RowStyles[1];if(style.SizeType!=SizeType.Absolute||style.Height!=height){style.SizeType=SizeType.Absolute;style.Height=height;zoomOptions.PerformLayout();}};
+  maxZoom.SizeChanged+=(s,e)=>sizeZoomOptions();zoomSteps.SizeChanged+=(s,e)=>sizeZoomOptions();zoomOptions.Layout+=(s,e)=>sizeZoomOptions();sizeZoomOptions();row(zoomOptions);
+
+  var framing=new TableLayoutPanel {ColumnCount=2,RowCount=2,AutoSize=true,Dock=DockStyle.Top,Margin=new Padding(0,0,0,18)};
+  framing.RowStyles.Add(new RowStyle(SizeType.AutoSize));framing.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+  framing.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,65));framing.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,35));
+  framing.Controls.Add(TextLabel("Hub Scale",10,true),0,0);framing.Controls.Add(TextLabel("Theme",10,true),1,0);
+  hubScales.DropDownStyle=ComboBoxStyle.DropDownList;hubScales.Dock=DockStyle.Fill;hubScales.Margin=new Padding(0,0,16,4);hubScales.AccessibleName="Hub Scale";
+  themes.DropDownStyle=ComboBoxStyle.DropDownList;themes.Dock=DockStyle.Fill;themes.Margin=new Padding(0,0,0,4);themes.AccessibleName="Theme";
+  hubScales.SelectedIndexChanged+=(s,e)=>{if(!initializing){SaveSelection();notice="";RefreshState();}};
+  themes.SelectedIndexChanged+=(s,e)=>{if(!initializing){ApplyTheme();if(!smoke)SaveTheme();}};
+  framing.Controls.Add(hubScales,0,1);framing.Controls.Add(themes,1,1);
+  // Native combo boxes can be taller than their reported preferred size.
+  Action sizeFraming=()=>{
+   int height=Math.Max(hubScales.Height+hubScales.Margin.Vertical,themes.Height+themes.Margin.Vertical);
+   var style=framing.RowStyles[1];
+   if(style.SizeType!=SizeType.Absolute||style.Height!=height){style.SizeType=SizeType.Absolute;style.Height=height;framing.PerformLayout();}
+  };
+  hubScales.SizeChanged+=(s,e)=>sizeFraming();themes.SizeChanged+=(s,e)=>sizeFraming();
+  framing.Layout+=(s,e)=>sizeFraming();sizeFraming();row(framing);
+
   var card=new TableLayoutPanel {ColumnCount=1,RowCount=2,AutoSize=false,Height=112,Dock=DockStyle.Top,BackColor=Color.FromArgb(238,244,248),Padding=new Padding(16),Margin=new Padding(0,0,0,18)};
 
+  statusCard=card;
   card.RowStyles.Add(new RowStyle(SizeType.Absolute,24));card.RowStyles.Add(new RowStyle(SizeType.Percent,100));
   status.AutoSize=false;status.Dock=DockStyle.Fill;status.MaximumSize=new Size(554,0);status.Font=new Font(Font,FontStyle.Bold);status.Margin=new Padding(0,0,0,7);
 
@@ -309,7 +353,7 @@ class Launcher : Form {
 
   layout.SizeChanged+=(s,e)=>{int w=Math.Max(240,layout.ClientSize.Width-layout.Padding.Horizontal);foreach(Control c in layout.Controls){var label=c as Label;if(label!=null)label.MaximumSize=new Size(w,0);}status.MaximumSize=new Size(Math.Max(220,w-32),0);detail.MaximumSize=status.MaximumSize;};
 
-  tray.Icon=SystemIcons.Application;tray.Text="Campaign Ultrawide";tray.DoubleClick+=(s,e)=>Reveal();
+  tray.Icon=appIcon;tray.Text="Campaign Ultrawide";tray.DoubleClick+=(s,e)=>Reveal();
 
   tray.ContextMenuStrip=new ContextMenuStrip();tray.ContextMenuStrip.Items.Add("Open Campaign Ultrawide",null,(s,e)=>Reveal());
 
@@ -319,15 +363,83 @@ class Launcher : Form {
 
   FormClosing+=(s,e)=>{if(!quitting&&!smoke&&(busy||Engine.Running()||WorkerAlive())){e.Cancel=true;Hide();tray.Visible=true;tray.ShowBalloonTip(2500,"Campaign Ultrawide","Automatic setup is still running. Double-click this icon to reopen.",ToolTipIcon.Info);}};
 
-  FormClosed+=(s,e)=>{timer.Dispose();tray.Dispose();};
+  FormClosed+=(s,e)=>{timer.Dispose();tray.Dispose();appIcon.Dispose();};
 
-  initializing=false;RefreshState();
+  foreach(var combo in new[]{resolutions,hudSizes,hubScales,themes,maxZoom,zoomSteps}){combo.DrawMode=DrawMode.OwnerDrawFixed;combo.ItemHeight=TextRenderer.MeasureText("Ag",combo.Font).Height+4;combo.FlatStyle=FlatStyle.Flat;combo.DrawItem+=DrawChoice;}
+  HandleCreated+=(s,e)=>ThemeTitleBar(this);
+  initializing=false;ApplyTheme();RefreshState();
 
   Shown+=async(s,e)=>{RefreshState();if(!smoke)await CheckForRunningGame();if(smoke){var t=new System.Windows.Forms.Timer{Interval=800};t.Tick+=(a,b)=>{t.Stop();t.Dispose();try{LayoutTest();}catch(Exception ex){File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"layout-test-results.txt"),ex.ToString());Environment.ExitCode=1;}quitting=true;Close();};t.Start();}};
 
  }
 
- void SaveSelection(){if(Selected==null||!ScaleFits)return;Selected.HudScale=HudScale;try{File.WriteAllText(Path.Combine(Engine.Root,"resolution.json"),new JavaScriptSerializer().Serialize(Selected));Directory.CreateDirectory(Directory.GetParent(settingsPath).FullName);File.WriteAllText(settingsPath,new JavaScriptSerializer().Serialize(Selected));}catch(IOException){notice="Your selection could not be saved. You can still choose it before playing.";}}
+ [DllImport("dwmapi.dll")]static extern int DwmSetWindowAttribute(IntPtr window,int attribute,ref int value,int size);
+ void ThemeTitleBar(Form form){
+  if(!form.IsHandleCreated)return;
+  int value=Dark?1:0;
+  try{if(DwmSetWindowAttribute(form.Handle,20,ref value,4)!=0)DwmSetWindowAttribute(form.Handle,19,ref value,4);}catch(DllNotFoundException){}catch(EntryPointNotFoundException){}
+ }
+ Color Surface {get{return Dark?Color.FromArgb(27,30,35):Color.FromArgb(248,249,251);}}
+ Color TextColor {get{return Dark?Color.FromArgb(236,239,243):Color.FromArgb(28,33,40);}}
+ Color InputColor {get{return Dark?Color.FromArgb(43,48,56):Color.White;}}
+ void PaintTheme(Control root){
+  root.BackColor=Surface;root.ForeColor=TextColor;
+  foreach(Control c in Descendants(root)){
+   c.BackColor=Surface;c.ForeColor=TextColor;
+   var button=c as Button;
+   if(button!=null){button.UseVisualStyleBackColor=false;button.FlatStyle=FlatStyle.Flat;button.BackColor=InputColor;button.FlatAppearance.BorderColor=Dark?Color.FromArgb(85,95,108):Color.FromArgb(177,186,198);button.FlatAppearance.MouseOverBackColor=Dark?Color.FromArgb(58,67,80):Color.FromArgb(229,237,248);button.FlatAppearance.MouseDownBackColor=Dark?Color.FromArgb(68,82,103):Color.FromArgb(213,226,244);}
+   if(c is ComboBox||c is TextBoxBase)c.BackColor=InputColor;
+  }
+ }
+ void ApplyTheme(){
+  SuspendLayout();PaintTheme(this);
+  Color card=Dark?Color.FromArgb(36,44,55):Color.FromArgb(232,240,250);
+  statusCard.BackColor=card;status.BackColor=card;detail.BackColor=card;
+  choiceHint.ForeColor=Dark?Color.FromArgb(180,190,205):Color.FromArgb(80,91,107);
+  tray.ContextMenuStrip.Renderer=new ToolStripProfessionalRenderer(new ThemeMenuColors(Dark));
+  tray.ContextMenuStrip.BackColor=InputColor;tray.ContextMenuStrip.ForeColor=TextColor;
+  foreach(ToolStripItem item in tray.ContextMenuStrip.Items){item.BackColor=InputColor;item.ForeColor=TextColor;}
+  ThemeTitleBar(this);ResumeLayout(false);Invalidate(true);
+ }
+ void DrawChoice(object sender,DrawItemEventArgs e){
+  var combo=(ComboBox)sender;bool selected=(e.State&DrawItemState.Selected)!=0;
+  Color background=selected?(Dark?Color.FromArgb(61,91,130):Color.FromArgb(214,230,252)):InputColor;
+  using(var brush=new SolidBrush(background))e.Graphics.FillRectangle(brush,e.Bounds);
+  string text=e.Index>=0?combo.GetItemText(combo.Items[e.Index]):combo.Text;
+  Color foreground=combo.Enabled?TextColor:(Dark?Color.FromArgb(150,160,174):Color.FromArgb(108,116,128));
+  var bounds=e.Bounds;bounds.X+=4;bounds.Width-=8;
+  TextRenderer.DrawText(e.Graphics,text,combo.Font,bounds,foreground,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+  e.DrawFocusRectangle();
+ }
+ void SaveTheme(){
+  try{
+   var json=new JavaScriptSerializer();Resolution saved=null;
+   if(File.Exists(settingsPath))saved=json.Deserialize<Resolution>(File.ReadAllText(settingsPath));
+   if(saved==null)saved=Selected??new Resolution();saved.Theme=ThemeChoice;
+   Directory.CreateDirectory(Directory.GetParent(settingsPath).FullName);File.WriteAllText(settingsPath,json.Serialize(saved));
+  }catch(IOException){notice="Your theme could not be saved.";}catch(ArgumentException){notice="Your theme could not be saved.";}
+ }
+ sealed class ThemeButton:Button {
+  protected override void OnPaint(PaintEventArgs e){
+   if(Enabled){base.OnPaint(e);return;}
+   e.Graphics.Clear(BackColor);ControlPaint.DrawBorder(e.Graphics,ClientRectangle,FlatAppearance.BorderColor,ButtonBorderStyle.Solid);
+   Color disabled=BackColor.GetBrightness()<.5f?Color.FromArgb(151,160,173):Color.FromArgb(117,125,137);
+   TextRenderer.DrawText(e.Graphics,Text,Font,ClientRectangle,disabled,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
+  }
+ }
+ sealed class ThemeMenuColors:ProfessionalColorTable {
+  readonly bool dark;public ThemeMenuColors(bool dark){this.dark=dark;UseSystemColors=false;}
+  Color Background {get{return dark?Color.FromArgb(43,48,56):Color.White;}}
+  public override Color ToolStripDropDownBackground {get{return Background;}}
+  public override Color ImageMarginGradientBegin {get{return Background;}}
+  public override Color ImageMarginGradientMiddle {get{return Background;}}
+  public override Color ImageMarginGradientEnd {get{return Background;}}
+  public override Color MenuItemSelected {get{return dark?Color.FromArgb(58,67,80):Color.FromArgb(229,237,248);}}
+  public override Color MenuItemBorder {get{return MenuItemSelected;}}
+  public override Color MenuBorder {get{return dark?Color.FromArgb(85,95,108):Color.FromArgb(177,186,198);}}
+ }
+
+ void SaveSelection(){if(Selected==null||!ScaleFits)return;Selected.HudScale=HudScale;Selected.HubScale=HubScale;Selected.MaxZoom=MaxZoom;Selected.ZoomSteps=ZoomSteps;Selected.Theme=ThemeChoice;try{File.WriteAllText(Path.Combine(Engine.Root,"resolution.json"),new JavaScriptSerializer().Serialize(Selected));Directory.CreateDirectory(Directory.GetParent(settingsPath).FullName);File.WriteAllText(settingsPath,new JavaScriptSerializer().Serialize(Selected));}catch(IOException){notice="Your selection could not be saved. You can still choose it before playing.";}}
 
  bool WorkerAlive(){try{return worker!=null&&!worker.HasExited;}catch{return false;}}
 
@@ -341,18 +453,18 @@ class Launcher : Form {
   var games=Process.GetProcessesByName("SC2_x64");try{return games.Length==1?games[0].Id+":"+games[0].StartTime.ToUniversalTime().Ticks:"";}catch(InvalidOperationException){return "";}catch(System.ComponentModel.Win32Exception){return "";}finally{foreach(var g in games)g.Dispose();}
  }
  async Task CheckForRunningGame(){
-  if(smoke||!automaticEnabled||busy||hudSizes.DroppedDown||resolutions.DroppedDown)return;
+  if(smoke||!automaticEnabled||busy||zoomSteps.DroppedDown||maxZoom.DroppedDown||themes.DroppedDown||hubScales.DroppedDown||hudSizes.DroppedDown||resolutions.DroppedDown)return;
   string game=GameIdentity();if(game.Length==0){lastAutoGame="";return;}
   if(Engine.Running()||WorkerAlive()||game==lastAutoGame)return;
   lastAutoGame=game;await StartWorker();
  }
  void RefreshState(){
 
-  if(hudSizes.DroppedDown||resolutions.DroppedDown)return;
+  if(zoomSteps.DroppedDown||maxZoom.DroppedDown||themes.DroppedDown||hubScales.DroppedDown||hudSizes.DroppedDown||resolutions.DroppedDown)return;
   string nextStatus="",nextDetail="",nextHint="";
   bool running=Engine.Running()||WorkerAlive(),game=GameOpen();
 
-  resolutions.Enabled=!busy&&!running&&!game;play.Enabled=!busy&&!running&&Selected!=null&&ScaleFits;hudSizes.Enabled=!busy;play.Text="Enable";stop.Enabled=!busy&&running;recheck.Enabled=!busy&&Selected!=null&&ScaleFits;
+  resolutions.Enabled=!busy&&!running&&!game;play.Enabled=!busy&&!running&&Selected!=null&&ScaleFits;hudSizes.Enabled=!busy;hubScales.Enabled=!busy;maxZoom.Enabled=!busy;zoomSteps.Enabled=!busy;play.Text="Enable";stop.Enabled=!busy&&running;recheck.Enabled=!busy&&Selected!=null&&ScaleFits;
 
   foreach(Control c in options.Controls)c.Enabled=!busy;
 
@@ -382,7 +494,7 @@ class Launcher : Form {
 
      else if(phase=="Attaching resolution hook"||phase=="Preparing"){nextStatus="Setting up your display\u2026";nextDetail="Setup waits until an offline campaign mission is loaded.";}
 
-     else if(phase=="Waiting for offline campaign"){nextStatus="Waiting for an offline campaign";nextDetail="The fix stays inactive until an offline session and campaign map are confirmed.";}
+     else if(phase=="Waiting for offline campaign"){nextStatus="Waiting for an offline campaign";nextDetail="Load a single-player campaign to apply your settings.";}
 
      else if(phase=="Preparing campaign display"||phase=="Applying campaign resolution"){nextStatus="Setting your resolution\u2026";nextDetail="Keep the campaign visible for a few seconds. A brief screen refresh is normal.";}
 
@@ -432,7 +544,7 @@ class Launcher : Form {
 
    lastStatus=null;var state=Path.Combine(Engine.Root,"auto-campaign-state.json");if(File.Exists(state))File.Delete(state);
 
-   notice="";worker=Engine.Start("Auto-Campaign.ps1","-TargetWidth "+Selected.Width+" -TargetHeight "+Selected.Height+" -HudScale "+HudScale,Append);
+   notice="";worker=Engine.Start("Auto-Campaign.ps1","-TargetWidth "+Selected.Width+" -TargetHeight "+Selected.Height+" -HudScale "+HudScale+" -HubScale "+HubScale+" -MaxZoom "+MaxZoom+" -ZoomSteps "+ZoomSteps,Append);
 
    Append("Automatic setup started for "+Selected.Width+"x"+Selected.Height+".");RefreshState();await Task.Delay(200);RefreshState();
 
@@ -490,40 +602,66 @@ class Launcher : Form {
 
  }
 
- void ShowHelp(){MessageBox.Show(this,"ENABLE CAMPAIGN ULTRAWIDE\n1. Choose your resolution and bottom HUD size, then click Enable.\n2. Start StarCraft II yourself and load a campaign mission, or return to a mission already open.\n3. Keep the mission visible for a few seconds. The resolution and HUD apply automatically.\n\nThe fix activates only when an offline game session and a campaign map are confirmed. After loading your mission, the helper requests a normal display refresh and adjusts the HUD. There is no need to switch resolutions manually. Use fullscreen display mode. Resolution choices come from your primary display; HUD sizes run from 50% to 125% in 5% steps. You can change HUD size while enabled; return to the mission to see the change. Objectives and dialogs keep their normal size. Larger HUD sizes require enough horizontal space. Close the game before choosing a different resolution.\n\nWHILE PLAYING\nClosing this window keeps automatic setup in the notification area. It stops monitoring when the game closes. Use the tray menu to exit the app.\n\nRESTORE YOUR SETTINGS\nMore options lets you restore the original HUD or use the game's resolution. Return to the mission so HUD changes can finish. Closing StarCraft II removes all session changes. Leaving campaign blocks further application; an existing display size can remain until the next display reset or game exit.\n\nTROUBLESHOOTING\nIf setup stalls, choose Recheck game. It restarts automatic setup without closing StarCraft II. Opening this app while StarCraft II is running starts setup automatically. Choosing Stop automatic setup keeps it stopped until you choose Enable or Recheck game. Other display sizes may depend on your monitor and graphics settings. The activity log under More options can help diagnose problems.\n\nFor single-player campaigns.","Help",MessageBoxButtons.OK,MessageBoxIcon.Information);}
+ void ShowHelp(){ShowThemedHelp("ENABLE CAMPAIGN ULTRAWIDE\n1. Choose your resolution and bottom HUD size, then click Enable.\n2. Start StarCraft II yourself and load a campaign mission, or return to a mission already open.\n3. Keep the mission visible for a few seconds. The resolution and HUD apply automatically.\n\nUltrawide works in single-player campaign missions and hubs. The resolution and HUD adjust automatically. There is no need to switch resolutions manually. Use fullscreen display mode. Resolution choices come from your primary display; HUD sizes run from 50% to 100% in 5% steps. You can change HUD size while enabled; return to the mission to see the change. Objectives and dialogs keep their normal size. Larger HUD sizes require enough horizontal space. Close the game before choosing a different resolution.\n\nMAX ZOOM OUT\nChoose up to +100% additional camera distance and 5 to 20 zoom positions. The positions are evenly spaced between the closest view and your selected maximum. Default keeps the normal maximum distance. You can change both settings while playing.\n\nHUB SCALE\nOff keeps the original hub framing. Fit shows more scenery on the sides while keeping the normal camera height. Expanded adds 20 degrees to the horizontal field of view in Fit mode. You can switch these options while playing; they do not change mission cameras.\n\nWHILE PLAYING\nClosing this window keeps automatic setup in the notification area. It stops monitoring when the game closes. Use the tray menu to exit the app.\n\nRESTORE YOUR SETTINGS\nMore options lets you restore the original HUD or use the game's resolution. Return to the mission so HUD changes can finish. Closing StarCraft II removes all session changes. Leaving campaign blocks further application; an existing display size can remain until the next display reset or game exit.\n\nTROUBLESHOOTING\nIf setup stalls, choose Recheck game. It restarts automatic setup without closing StarCraft II. Opening this app while StarCraft II is running starts setup automatically. Choosing Stop automatic setup keeps it stopped until you choose Enable or Recheck game. Other display sizes may depend on your monitor and graphics settings. The activity log under More options can help diagnose problems.\n\nFor single-player campaigns.");}
+
+ void ShowThemedHelp(string text){
+  using(var dialog=new Form{Text="Help",Icon=appIcon,Font=Font,ClientSize=new Size(640,560),MinimumSize=new Size(480,400),StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false}){
+   var body=new RichTextBox{ReadOnly=true,BorderStyle=BorderStyle.None,Dock=DockStyle.Fill,Text=text,Font=Font,DetectUrls=false};
+   var footer=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=58,FlowDirection=FlowDirection.RightToLeft,Padding=new Padding(8)};
+   var close=Button("Close",(s,e)=>dialog.Close());close.DialogResult=DialogResult.Cancel;footer.Controls.Add(close);dialog.CancelButton=close;
+   dialog.Padding=new Padding(16);dialog.Controls.Add(body);dialog.Controls.Add(footer);PaintTheme(dialog);dialog.HandleCreated+=(s,e)=>ThemeTitleBar(dialog);dialog.ShowDialog(this);
+  }
+ }
 
  void LayoutTest(){
 
   var lines=new List<string>();lines.Add(Engine.StatusSelfTest());
-  if(hudSizes.Items.Count!=16)throw new Exception("HUD size option count");
-  for(int i=0;i<16;i++)if(hudSizes.Items[i].ToString()!=(50+5*i)+"%")throw new Exception("HUD size increment");
-  lines.Add("PASS: HUD selector contains 50%-125% in 5% steps.");
+  if(hudSizes.Items.Count!=11)throw new Exception("HUD size option count");
+  for(int i=0;i<11;i++)if(hudSizes.Items[i].ToString()!=(50+5*i)+"%")throw new Exception("HUD size increment");
+  lines.Add("PASS: HUD selector contains 50%-100% in 5% steps.");
   if(recheck==null||recheck.Text!="Recheck game")throw new Exception("Missing game recheck button");
   lines.Add("PASS: Recheck game is available in the main controls.");
+  if(!hubScales.Items.Cast<string>().SequenceEqual(new[]{"Off","Fit","Expanded"}))throw new Exception("Hub scale choices");
+  var serializer=new JavaScriptSerializer();
+  if(serializer.Deserialize<Resolution>("{\"Width\":3440,\"Height\":1440}").HubScale!="Off")throw new Exception("Legacy hub default");
+  foreach(string mode in new[]{"Off","Fit","Expanded"})if(serializer.Deserialize<Resolution>(serializer.Serialize(new Resolution{HubScale=mode})).HubScale!=mode)throw new Exception("Hub setting round trip");
+  lines.Add("PASS: Hub Scale choices and saved settings; missing setting defaults to Off.");
+  if(maxZoom.Items.Count!=11||maxZoom.Items[0].ToString()!="Default")throw new Exception("Zoom options");
+  for(int i=1;i<=10;i++)if(maxZoom.Items[i].ToString()!="+"+(i*10)+"%")throw new Exception("Zoom increments");
+  if(serializer.Deserialize<Resolution>("{}").MaxZoom!=0)throw new Exception("Legacy zoom default");
+  for(int i=0;i<=100;i+=10)if(serializer.Deserialize<Resolution>(serializer.Serialize(new Resolution{MaxZoom=i})).MaxZoom!=i)throw new Exception("Zoom setting round trip");
+  maxZoom.DroppedDown=true;for(int i=0;i<10;i++)RefreshState();if(!maxZoom.DroppedDown)throw new Exception("Refresh closed zoom dropdown");maxZoom.DroppedDown=false;
+  lines.Add("PASS: Max zoom out Default and +10%-+100% options, saved settings, and stable open dropdown.");
+  if(zoomSteps.Items.Count!=16)throw new Exception("Zoom step option count");
+  for(int i=0;i<16;i++)if(zoomSteps.Items[i].ToString()!=(5+i).ToString())throw new Exception("Zoom step choice");
+  for(int i=5;i<=20;i++)if(serializer.Deserialize<Resolution>(serializer.Serialize(new Resolution{ZoomSteps=i})).ZoomSteps!=i)throw new Exception("Zoom step round trip");
+  zoomSteps.DroppedDown=true;for(int i=0;i<10;i++)RefreshState();if(!zoomSteps.DroppedDown)throw new Exception("Refresh closed zoom step dropdown");zoomSteps.DroppedDown=false;
+  lines.Add("PASS: 5-20 zoom steps, saved choices, and stable open dropdown.");
   var oldStatus=status.Text;var oldDetail=detail.Text;var oldHint=choiceHint.Text;
   var buttons=Descendants(this).OfType<Button>().ToArray();var positions=buttons.Select(b=>b.RectangleToScreen(b.ClientRectangle)).ToArray();
-  foreach(string text in new[]{"Ready","Preparing your campaign...","Waiting for an offline campaign"}){status.Text=text;detail.Text="The fix stays inactive until an offline session and campaign map are confirmed.";choiceHint.Text="Choose a widescreen resolution supported by your primary display. Your choice is saved for next time.";PerformLayout();for(int i=0;i<buttons.Length;i++)if(buttons[i].RectangleToScreen(buttons[i].ClientRectangle)!=positions[i])throw new Exception("Status update moved a button");}
+  foreach(string text in new[]{"Ready","Preparing your campaign...","Waiting for an offline campaign"}){status.Text=text;detail.Text="Load a single-player campaign to apply your settings.";choiceHint.Text="Choose a widescreen resolution supported by your primary display. Your choice is saved for next time.";PerformLayout();for(int i=0;i<buttons.Length;i++)if(buttons[i].RectangleToScreen(buttons[i].ClientRectangle)!=positions[i])throw new Exception("Status update moved a button");}
   status.Text=oldStatus;detail.Text=oldDetail;choiceHint.Text=oldHint;
   hudSizes.DroppedDown=true;for(int i=0;i<10;i++)RefreshState();if(!hudSizes.DroppedDown)throw new Exception("Refresh closed HUD dropdown");hudSizes.DroppedDown=false;
-  lines.Add("PASS: status changes keep button positions stable; ten refreshes keep HUD dropdown open.");
+  hubScales.DroppedDown=true;for(int i=0;i<10;i++)RefreshState();if(!hubScales.DroppedDown)throw new Exception("Refresh closed Hub Scale dropdown");hubScales.DroppedDown=false;
+  lines.Add("PASS: status changes keep button positions stable; refreshes keep HUD and Hub Scale dropdowns open.");
 
   foreach(float factor in new float[]{1f,1.25f,1.5f,2f}){
 
    float previous=Tag is float?(float)Tag:1f;Scale(new SizeF(factor/previous,factor/previous));Tag=factor;
 
-   ClientSize=new Size((int)(634*factor),(int)(590*factor));PerformLayout();Application.DoEvents();
+   ClientSize=new Size((int)(634*factor),(int)(680*factor));PerformLayout();Application.DoEvents();
 
-   foreach(var b in Descendants(this).OfType<Button>().Where(c=>c.Visible)){
+   foreach(var b in Descendants(this).Where(c=>c.Visible&&(c is Button||c is ComboBox))){
 
-    if(!b.Parent.ClientRectangle.Contains(b.Bounds))throw new Exception("Button clipped by parent: "+b.Text+" at "+factor);
+    if(!b.Parent.ClientRectangle.Contains(b.Bounds))throw new Exception("Control clipped by parent: "+b.Text+" at "+factor);
 
     Rectangle onForm=RectangleToClient(b.RectangleToScreen(b.ClientRectangle));
 
-    if(!ClientRectangle.Contains(onForm))throw new Exception("Button outside window: "+b.Text+" at "+factor);
+    if(!ClientRectangle.Contains(onForm))throw new Exception("Control outside window: "+b.Text+" at "+factor);
 
    }
 
-   lines.Add("PASS: default layout buttons contained at "+factor+" scaling.");
+   lines.Add("PASS: default layout buttons and dropdowns contained at "+factor+" scaling.");
 
   }
 

@@ -10,7 +10,7 @@ public static class SC2CampaignDisplayRefresh {
  static uint U32(int pid,ulong a){return BitConverter.ToUInt32(Read(pid,a,4),0);}
  public static bool Pending(int pid,ulong module){var b=Read(pid,module+RequestRva,2);return b[0]!=0||b[1]!=0;}
  public static string Request(int pid,ulong module,ulong device,ulong vtable,ulong state){
-  SC2CampaignGate.Require(pid,module);
+  SC2DisplayGate.Require(pid,module);
   if(!IsForeground(pid))return "Waiting for game focus";
   // These two booleans are the normal graphics-settings queue, not the
   // D3D lost-device reset flag. The game consumes and clears them itself.
@@ -23,7 +23,7 @@ public static class SC2CampaignDisplayRefresh {
   if(Read(pid,resource+0x80,1)[0]!=0)return "Waiting for fullscreen mode";
   uint packed=U32(pid,resource+0x60);if((packed&0x3fff)<1280||((packed>>14)&0x3fff)<720)return "Waiting for display";
   if(Pending(pid,module))return "Waiting for graphics update";
-  SC2CampaignGate.Require(pid,module);
+  SC2DisplayGate.Require(pid,module);
   if(!IsForeground(pid)||Ptr(pid,module+0x4032368)!=ui||Ptr(pid,device)!=vtable)return "Waiting for stable campaign";
   SC2HudHook.CheckedWrite(pid,module+RequestRva,new byte[]{0,0},new byte[]{1,1});
   return "Requested";

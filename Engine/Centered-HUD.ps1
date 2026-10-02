@@ -1,6 +1,6 @@
 ﻿param([ValidateSet('Enable','Disable','Status')][string]$Action='Status',[int]$TargetWidth=3440,[int]$TargetHeight=1440)
 $ErrorActionPreference='Stop'
-if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
+if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
 [SC2CampaignModeHook]::ValidateTarget($TargetWidth,$TargetHeight)
 $hudInset=[SC2CampaignModeHook]::HudInset($TargetWidth,$TargetHeight)
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)

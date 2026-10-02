@@ -7,7 +7,7 @@ try {
    [void][Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors)
    if($errors.Count){throw ($errors | Out-String)}
   }
-  Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
+  Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
   [SC2CampaignModeHook]::ModeSelfTest()
   [SC2HudHook]::SelfTest()
   [SC2HudScale]::SelfTest()
@@ -47,10 +47,10 @@ try {
     $text=$status -join "`n"
     if($text.StartsWith('{')) {
      $state=$text | ConvertFrom-Json
-     if(!$state.Attached){'Original HUD restored and wrapper detached.';exit 0}
+     if(!$state.Attached){'Original HUD restored.';exit 0}
     } else { $text;exit 0 }
    } while((Get-Date) -lt $deadline)
-   throw 'Restoration is queued. Return to the mission, then use Inspect hooks to complete detachment.'
+   throw 'Restoration is queued. Return to the mission, then try Restore original HUD again.'
   }
  }
 } catch { Write-Error $_;exit 1 }

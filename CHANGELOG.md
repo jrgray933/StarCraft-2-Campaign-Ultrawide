@@ -1,38 +1,14 @@
 # Changelog
 
-## 1.6.1
+## 1.8.0
 
-- Remove exact game-version rejection while retaining executable identity, native hook checks, and offline campaign restrictions.
-- Record the running game version in hook metadata.
-- Update compatibility documentation and remove the campaign testing overview.
+- Add farther mission zoom, from +10% to +100% in 10% increments.
+- Add 5–20 zoom positions, evenly spaced across the selected range.
+- Extend shadow distance automatically to keep distant shadows visible when zoomed out.
+- Add Off, Fit, and Expanded hub framing. Keep the selected framing when changing rooms, opening the mission computer, or returning from a mission.
+- Add light and dark themes and a transparent app icon.
+- Limit bottom HUD size to 50–100% in 5% increments.
+- Fix disappearing hotkeys and inconsistent unit-panel text when changing HUD size during a mission.
+- Improve setup when opening the helper after loading a mission from the archives.
 
-## 1.6.0
-
-Release preparation for StarCraft II 5.0.16.97563.
-
-- Detect the game in any installation directory; retain exact executable-name and build validation.
-- Add an MIT license, source project, documentation, test runner, Windows CI, and release packaging.
-- Remove obsolete development scripts, backups, generated logs, editor caches, and old executables from the source tree.
-- Allow isolated self-tests and layout tests while the normal helper is open.
-
-Includes the existing automatic campaign resolution fix, centered HUD, 50–125% scale selector, cargo and production queue corrections, Recheck game, and stable dropdown/status layout.
-
-## 1.5.4
-
-- Keep open dropdowns undisturbed by background updates.
-- Update status text only when it changes and keep the layout stable.
-- Shorten the mission-ready status to Ready.
-
-## 1.5.3
-
-- Handle incomplete status updates without a launcher exception.
-- Automatically detect an already-running game and add Recheck game.
-
-## 1.5.1
-
-- Scale native cargo cells and preserve the cargo panel's placement.
-- Keep production queues centered after selection changes.
-
-## 1.5.0
-
-- Add saved bottom HUD sizes from 50% to 125% in 5% increments.
+Download **Starcraft-2-Campaign-Ultrawide-1.8.0-windows-x64.zip**, extract it, and run **Campaign Ultrawide.exe**. Close the game and helper before updating.

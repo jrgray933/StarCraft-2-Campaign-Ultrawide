@@ -1,4 +1,4 @@
-﻿param([string]$OutputDirectory=(Join-Path $PSScriptRoot 'build'))
+param([string]$OutputDirectory=(Join-Path $PSScriptRoot 'build'))
 $ErrorActionPreference='Stop'
 if(-not [Environment]::Is64BitOperatingSystem){throw 'Build on 64-bit Windows.'}
 $compiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -9,6 +9,8 @@ $engineFiles=@(
     'Campaign-Ultrawide.ps1',
     'CampaignDisplayRefresh.cs',
     'CampaignGate.cs',
+    'HubCamera.cs',
+    'MissionZoom.cs',
     'CampaignModeHook.cs',
     'Centered-HUD.ps1',
     'Control.ps1',
@@ -24,6 +26,9 @@ foreach($name in $engineFiles){
     if(!(Test-Path -LiteralPath $file)){throw ('Missing engine source: '+$name)}
     $arguments+=('/resource:'+$file+',Engine.'+$name)
 }
+$icon=Join-Path $PSScriptRoot 'Assets\App.ico'
+$arguments+=('/win32icon:'+$icon)
+$arguments+=('/resource:'+$icon+',Application.Icon')
 $arguments+=(Join-Path $PSScriptRoot 'Launcher.cs')
 & $compiler @arguments
 if($LASTEXITCODE -ne 0){throw 'Compilation failed.'}

@@ -5,6 +5,7 @@
     <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
     <ProjectGuid>{4968DEBC-0C50-49AB-942A-00E221985BA4}</ProjectGuid>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets\App.ico</ApplicationIcon>
     <AssemblyName>Campaign Ultrawide</AssemblyName>
     <RootNamespace>CampaignUltrawide</RootNamespace>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
@@ -20,6 +21,8 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Web.Extensions" />
     <Compile Include="Launcher.cs" />
+    <None Include="Assets\icon.png" />
+    <EmbeddedResource Include="Assets\App.ico"><LogicalName>Application.Icon</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\Auto-Campaign.ps1"><LogicalName>Engine.Auto-Campaign.ps1</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\Campaign-Ultrawide.ps1"><LogicalName>Engine.Campaign-Ultrawide.ps1</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\CampaignDisplayRefresh.cs"><LogicalName>Engine.CampaignDisplayRefresh.cs</LogicalName></EmbeddedResource>
@@ -33,5 +36,7 @@
     <EmbeddedResource Include="Engine\SC2HudScale.cs"><LogicalName>Engine.SC2HudScale.cs</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\Scaled-HUD.ps1"><LogicalName>Engine.Scaled-HUD.ps1</LogicalName></EmbeddedResource>
   </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Engine\HubCamera.cs"><LogicalName>Engine.HubCamera.cs</LogicalName></EmbeddedResource></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Engine\MissionZoom.cs"><LogicalName>Engine.MissionZoom.cs</LogicalName></EmbeddedResource></ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

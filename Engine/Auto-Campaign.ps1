@@ -1,10 +1,10 @@
-﻿param([int]$TargetWidth=3440,[int]$TargetHeight=1440,[int]$HudScale=100)
+﻿param([int]$TargetWidth=3440,[int]$TargetHeight=1440,[int]$HudScale=100,[ValidateSet('Off','Fit','Expanded')][string]$HubScale='Off',[int]$MaxZoom=0,[int]$ZoomSteps=5)
 $ErrorActionPreference='Stop'
 $logPath=Join-Path $PSScriptRoot 'auto-campaign.log'
 $statePath=Join-Path $PSScriptRoot 'auto-campaign-state.json'
 $stopPath=Join-Path $PSScriptRoot 'auto-campaign-stop.request'
 $mutex=New-Object Threading.Mutex($false,'Local\SC2CampaignAuto97563')
-$owned=$false
+$owned=$false;$hubCamera=$null;$missionZoom=$null
 function Log([string]$message){Add-Content -LiteralPath $logPath -Value ((Get-Date -Format o)+' '+$message) -Encoding UTF8}
 function State([string]$phase,[object]$detail){[pscustomobject]@{WorkerPid=$PID;Updated=(Get-Date -Format o);Phase=$phase;Detail=$detail} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8}
 function Bytes([System.UInt64]$address,[int]$length){$bytes=[SC2Memory]::Read($game.Id,$address,$length);if(!$bytes){throw 'Game data is not ready.'};return ,$bytes}
@@ -17,10 +17,11 @@ try{
  if(!$owned){exit}
  if(Test-Path -LiteralPath $stopPath){Remove-Item -LiteralPath $stopPath}
  Log 'Automatic campaign helper starting.';State 'Preparing' $null
- Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
+ Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'MissionZoom.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
  [SC2CampaignModeHook]::ValidateTarget($TargetWidth,$TargetHeight)
  $hudInset=[SC2CampaignModeHook]::HudInset($TargetWidth,$TargetHeight)
  [SC2HudScale]::ValidateScale($TargetWidth,$TargetHeight,$HudScale)
+ [SC2MissionZoom]::Validate($MaxZoom);[SC2MissionZoom]::ValidateSteps($ZoomSteps)
  $scaleResetNeeded=$true;$scaleNext=Get-Date;$reportedScale=-1
  State 'Waiting for StarCraft II' $null
  $deadline=(Get-Date).AddMinutes(10);$game=$null
@@ -41,27 +42,32 @@ try{
  if(Test-Path -LiteralPath $modeRecordPath){
   $oldMode=Get-Content -LiteralPath $modeRecordPath -Raw | ConvertFrom-Json
   if($oldMode.GamePid -eq $game.Id -and ([datetime]$oldMode.Started).ToUniversalTime().Ticks -eq $game.StartTime.ToUniversalTime().Ticks){
-   if($oldMode.GateRevision -ne 2){throw 'Close StarCraft II before using the updated campaign restrictions.'}
+   if($oldMode.GateRevision -ne 3){throw 'Close StarCraft II before using the updated campaign restrictions.'}
    if($oldMode.TargetWidth -ne $TargetWidth -or $oldMode.TargetHeight -ne $TargetHeight){throw 'Close StarCraft II before changing resolution.'}
    if((Ptr (Hex $oldMode.Device)) -eq (Hex $oldMode.VTable)){$attached=[pscustomobject]@{Device=(Hex $oldMode.Device);State=(Hex $oldMode.State);VTable=(Hex $oldMode.VTable);AttachedAfterMilliseconds=-1;ResourceAlreadyExisted=$true};Log 'Using the already attached resolution hook.'}
   }
  }
- if(!$attached){$attached=[SC2AutoStart]::Attach($game.Id,$expectedExe,$modeRecordPath,$stopPath,3600000,$TargetWidth,$TargetHeight);Log ('Resolution hook attached '+[Math]::Round($attached.AttachedAfterMilliseconds)+' ms after process start; existing display resource='+$attached.ResourceAlreadyExisted+'.')}
+ if(!$attached){$attached=[SC2AutoStart]::Attach($game.Id,$expectedExe,$modeRecordPath,$stopPath,3600000,$TargetWidth,$TargetHeight);if($attached.Recovered){Log 'Recovered the existing resolution hook; continuing campaign setup.'}else{Log ('Resolution hook attached '+[Math]::Round($attached.AttachedAfterMilliseconds)+' ms after process start; existing display resource='+$attached.ResourceAlreadyExisted+'.')}}
  $moduleBase=[System.UInt64]$game.MainModule.BaseAddress.ToInt64()
+ $hubCamera=New-Object SC2HubCamera($game.Id,$moduleBase,(Join-Path $PSScriptRoot 'hub-camera-session.txt'))
+ $missionZoom=New-Object SC2MissionZoom($game.Id,$moduleBase,(Join-Path $PSScriptRoot 'mission-zoom-session.txt'))
  $refresh=New-Object SC2DisplayRefreshSchedule
  $timer=[Diagnostics.Stopwatch]::StartNew()
- $refreshPhase=''
+ $refreshPhase='';$lastHubStatus=''
  $context='';$stableSince=Get-Date;$hudReady='';$lastError='';$attemptAfter=Get-Date;$lastWidth=0;$lastHeight=0;$blocked=$false;$pendingHud='';$pendingSince=Get-Date
  while(!$game.HasExited){
   if(Test-Path -LiteralPath $stopPath){Log 'Automatic monitoring stopped; existing session fixes remain until restored or game exit.';State 'Stopped' @{GamePid=$game.Id};exit}
   try{
    $settingsFile=Join-Path $PSScriptRoot 'resolution.json'
-   if(Test-Path -LiteralPath $settingsFile){$liveSettings=Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json;if($liveSettings.HudScale){[SC2HudScale]::ValidateScale($TargetWidth,$TargetHeight,[int]$liveSettings.HudScale);$HudScale=[int]$liveSettings.HudScale}}
+   if(Test-Path -LiteralPath $settingsFile){$liveSettings=Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json;if($liveSettings.HudScale){[SC2HudScale]::ValidateScale($TargetWidth,$TargetHeight,[int]$liveSettings.HudScale);$HudScale=[int]$liveSettings.HudScale};$HubScale=if($liveSettings.HubScale -in @('Fit','Expanded')){[string]$liveSettings.HubScale}else{'Off'};$MaxZoom=[Math]::Min(100,[int]$liveSettings.MaxZoom);$ZoomSteps=if($liveSettings.ZoomSteps){[int]$liveSettings.ZoomSteps}else{5};[SC2MissionZoom]::ValidateSteps($ZoomSteps);[SC2MissionZoom]::Validate($MaxZoom)}
+   try{$null=$missionZoom.Tick($MaxZoom,$ZoomSteps)}catch{$zoomError=$_.Exception.Message;if($zoomError -ne $lastZoomError){Log ('Zoom: '+$zoomError);$lastZoomError=$zoomError}}
    $eligibility=[SC2CampaignGate]::Check($game.Id,$moduleBase)
-   if(!$eligibility.Allowed){
-    $refresh.Clear();$refreshPhase=''
-    if(!$blocked){Log $eligibility.Reason}
-    $blocked=$true;State 'Waiting for offline campaign' @{GamePid=$game.Id;Reason=$eligibility.Reason}
+   $hub=[SC2HubGate]::Check($game.Id,$moduleBase)
+   if(!$hub.Allowed){$lastHubStatus='';$null=$hubCamera.Stop()}
+   if(!$eligibility.Allowed -or $hub.Allowed){
+    if(!$hub.Allowed){$refresh.Clear();$refreshPhase=''}
+    if(!$blocked -and !$hub.Allowed){Log $eligibility.Reason}
+    $blocked=$true;if(!$hub.Allowed){State 'Waiting for offline campaign' @{GamePid=$game.Id;Reason=$eligibility.Reason}}
     # A pending apply is also checked in its native callback. Restore only an
     # existing, matching live HUD; destroyed mission frames are never touched.
     if($context){
@@ -72,9 +78,9 @@ try{
      }
      $context='';$hudReady='';$pendingHud=''
     }
-    Start-Sleep -Milliseconds 150;continue
+    if(!$hub.Allowed){Start-Sleep -Milliseconds 150;continue}
    }
-   if($blocked){Log ('Offline campaign confirmed: '+$eligibility.MapPath);$lastWidth=0;$blocked=$false}
+   if($blocked -and $eligibility.Allowed -and !$hub.Allowed){Log ('Offline campaign confirmed: '+$eligibility.MapPath);$lastWidth=0;$blocked=$false}
    $device=Ptr ($moduleBase+0x43D0E08);if(!$device){Start-Sleep -Milliseconds 100;continue}
    $resource=Ptr ($device+0x80);if(!$resource){Start-Sleep -Milliseconds 100;continue}
    $packed=U32 ($resource+0x60);$width=$packed -band 0x3fff;$height=($packed -shr 14) -band 0x3fff
@@ -82,7 +88,8 @@ try{
    $ui=Ptr ($moduleBase+0x4032368)
    $uiReady=$ui -and (Ptr $ui) -eq ($moduleBase+0x2D522A8)
    $atTarget=$width -eq $TargetWidth -and $height -eq $TargetHeight
-   $refreshKey=('{0}:{1:X}:{2:X}' -f $eligibility.MapPath,$ui,$device)
+   $displayContext=if($hub.Allowed){'Hub:'+ $hub.Key}else{$eligibility.MapPath}
+   $refreshKey=('{0}:{1:X}:{2:X}' -f $displayContext,$ui,$device)
    $focused=$uiReady -and [SC2CampaignDisplayRefresh]::IsForeground($game.Id)
    $decision=$refresh.Observe($refreshKey,$focused,$atTarget,$timer.Elapsed.TotalMilliseconds)
    if(!$atTarget){
@@ -98,6 +105,15 @@ try{
     Start-Sleep -Milliseconds 100;continue
    }
    $refreshPhase=''
+   if($hub.Allowed){
+    $cameraReady=$hubCamera.Tick($hub,$HubScale,([double]$TargetWidth/$TargetHeight))
+    $hubStatus=$hub.Key+':'+$HubScale+':'+$cameraReady
+    if($hubStatus -ne $lastHubStatus){
+     if($cameraReady){State 'Ready' @{GamePid=$game.Id;Width=$width;Height=$height;Hub=$true}}else{State 'Preparing campaign display' @{GamePid=$game.Id;Width=$width;Height=$height}}
+     $lastHubStatus=$hubStatus
+    }
+    Start-Sleep -Milliseconds 25;continue
+   }
 
    $ui=Ptr ($moduleBase+0x4032368)
    if(!$ui -or (Ptr $ui) -ne ($moduleBase+0x2D522A8)){$context='';$hudReady='';Start-Sleep -Milliseconds 100;continue}
@@ -138,7 +154,7 @@ try{
  }
  Log 'Game exited; automatic helper finished.';State 'Game closed' $null
 }catch{if(Test-Path -LiteralPath $stopPath){Log 'Automatic helper stopped.';State 'Stopped' $null;exit 0};Log ('ERROR: '+$_.Exception.Message);State 'Error' $_.Exception.Message;exit 1}
-finally{if($owned){$mutex.ReleaseMutex()};$mutex.Dispose()}
+finally{if($missionZoom){try{$null=$missionZoom.Stop()}catch{Log ('Zoom restore: '+$_.Exception.Message)}};if($hubCamera){try{$null=$hubCamera.Stop()}catch{}};if($owned){$mutex.ReleaseMutex()};$mutex.Dispose()}
 
 
 
