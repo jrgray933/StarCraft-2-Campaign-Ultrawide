@@ -57,8 +57,30 @@ public static class MissionZoomTests {
    m=new Memory();m.Shadow(120);zoom=m.Zoom(record);zoom.Tick(100,10);Need(m.Shadow()==240,"mission-specific shadow baseline");zoom.Tick(0,10);Need(m.Shadow()==120,"Default maximum restores shadow clip while retaining custom steps");zoom.Tick(50,20);Need(m.Shadow()==180,"shadow setting can be reapplied");zoom.Stop();Need(m.Shadow()==120,"mission-specific baseline restored");
    m=new Memory();zoom=m.Zoom(null);zoom.Tick(100,10);m.Shadow(90);zoom.Tick(50,10);Need(m.Shadow()==90,"external shadow change respected");zoom.Stop();Need(m.Shadow()==90,"restore does not overwrite external shadow changes");
    foreach(float bad in new[]{0f,-1f,Single.NaN,Single.PositiveInfinity}){m=new Memory();m.Shadow(bad);var before=m.Read(Memory.Camera+0x118,12);zoom=m.Zoom(null);zoom.Tick(100,10);Need(Equal(before,m.Read(Memory.Camera+0x118,12)),"unsupported shadow value left unchanged");zoom.Stop();}
-   Native(m.Baseline);Console.WriteLine("PASS: "+cases+" zoom range/step combinations, original data ownership, restart/restore, native wheel endpoints, automatic shadow range, restoration, and campaign guards.");
+   EqualDistancePresets();Native(m.Baseline);Console.WriteLine("PASS: "+cases+" zoom range/step combinations, original data ownership, restart/restore, native wheel endpoints, automatic shadow range, restoration, and campaign guards.");
   }finally{if(File.Exists(record))File.Delete(record);if(File.Exists(record+".tmp"))File.Delete(record+".tmp");}
+ }
+ static void EqualDistancePresets(){
+  int cases=0;
+  foreach(var distances in new[]{new float[]{25,20,18,16,16},new float[]{25,25,20,18,16},new float[]{25,20,20,18,16},new float[]{16,16,16,16,16}}){
+   var m=new Memory();for(int i=0;i<5;i++)m.F(Memory.Presets+(ulong)i*0x90+0x24,distances[i]);
+   byte[] baseline=m.Read(Memory.Presets,5*0x90);m.Distance(distances[0]);
+   for(int steps=5;steps<=20;steps++)for(int percent=0;percent<=100;percent+=10){
+    var table=SC2MissionZoom.Presets(baseline,percent,steps);float maximum=distances[0]*(1+percent/100f);
+    for(int i=0;i<steps;i++){
+     float d=BitConverter.ToSingle(table,i*0x90+0x24),pitch=BitConverter.ToSingle(table,i*0x90+0x2c);
+     Need(Math.Abs(d-(maximum-(maximum-distances[4])*i/(steps-1)))<.0001f,"equal-distance preset spacing");
+     Need(!Single.IsNaN(pitch)&&!Single.IsInfinity(pitch)&&pitch>=40&&pitch<=56,"finite tilt across flat segments");
+    }
+    Need(BitConverter.ToSingle(table,0x2c)==56&&BitConverter.ToSingle(table,(steps-1)*0x90+0x2c)==40,"native endpoint tilts retained");cases++;
+   }
+   var zoom=m.Zoom(null);Need(zoom.Tick(50,12),"equal-distance mission attaches");Need(Math.Abs(m.Distance()-distances[0]*1.5f)<.001f,"equal-distance mission reaches extended maximum");
+   Need(Equal(baseline,m.Read(Memory.Presets,baseline.Length)),"equal-distance native presets preserved");zoom.Stop();
+   Native(baseline);
+  }
+  var invalid=new Memory().Baseline;Array.Copy(BitConverter.GetBytes(99f),0,invalid,0x90+0x24,4);
+  bool rejected=false;try{SC2MissionZoom.Presets(invalid,50,12);}catch(ArgumentException){rejected=true;}Need(rejected,"increasing distances remain rejected");
+  Console.WriteLine("PASS: "+cases+" equal-distance zoom layouts, endpoint tilts, attachment, restoration, and native wheel steps.");
  }
  [DllImport("kernel32.dll")]static extern IntPtr VirtualAlloc(IntPtr a,UIntPtr n,uint flags,uint protect);
  [DllImport("kernel32.dll")]static extern bool VirtualProtect(IntPtr a,UIntPtr n,uint protect,out uint old);

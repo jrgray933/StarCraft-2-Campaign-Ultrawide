@@ -17,7 +17,7 @@ try{
  if(!$owned){exit}
  if(Test-Path -LiteralPath $stopPath){Remove-Item -LiteralPath $stopPath}
  Log 'Automatic campaign helper starting.';State 'Preparing' $null
- Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'MissionZoom.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
+ Add-Type -Path @((Join-Path $PSScriptRoot 'SC2Addresses.cs'),(Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'MissionZoom.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
  [SC2CampaignModeHook]::ValidateTarget($TargetWidth,$TargetHeight)
  $hudInset=[SC2CampaignModeHook]::HudInset($TargetWidth,$TargetHeight)
  [SC2HudScale]::ValidateScale($TargetWidth,$TargetHeight,$HudScale)
@@ -37,6 +37,16 @@ try{
  [SC2AutoStart]::ValidateExecutable($expectedExe,$game.MainModule.FileVersionInfo.FileVersion)
  Log ('Detected StarCraft II PID '+$game.Id+'.');State 'Waiting for offline campaign' @{GamePid=$game.Id}
  $moduleBase=[System.UInt64]$game.MainModule.BaseAddress.ToInt64()
+ $resolveDeadline=(Get-Date).AddMinutes(10);$lastResolveError=''
+ while($true){
+  if(Test-Path -LiteralPath $stopPath){State 'Stopped' $null;exit}
+  if($game.HasExited){throw 'StarCraft II closed.'}
+  try{[SC2Addresses]::Ensure($game.Id,$moduleBase);break}catch{
+   $resolveError=$_.Exception.Message;if($resolveError -ne $lastResolveError){Log $resolveError;$lastResolveError=$resolveError}
+   if((Get-Date) -gt $resolveDeadline){throw}
+   State 'Waiting for offline campaign' @{GamePid=$game.Id};Start-Sleep -Seconds 3
+  }
+ }
  $modeRecordPath=Join-Path $PSScriptRoot 'engine-reset-session.json'
  $attached=$null
  if(Test-Path -LiteralPath $modeRecordPath){
@@ -71,8 +81,8 @@ try{
     # A pending apply is also checked in its native callback. Restore only an
     # existing, matching live HUD; destroyed mission frames are never touched.
     if($context){
-     $currentUi=Ptr ($moduleBase+0x4032368)
-     if($currentUi -and (Ptr $currentUi) -eq ($moduleBase+0x2D522A8)){
+     $currentUi=Ptr ($moduleBase+([SC2Addresses]::Rva(0x4032368)))
+     if($currentUi -and (Ptr $currentUi) -eq ($moduleBase+([SC2Addresses]::Rva(0x2D522A8)))){
       $liveOwner=Ptr ($currentUi+0xc68)
       if($liveOwner -eq $owner){$scaled=& (Join-Path $PSScriptRoot 'Scaled-HUD.ps1') -Action Disable;if(!$scaled.Ready){Start-Sleep -Milliseconds 100;continue};$null=& (Join-Path $PSScriptRoot 'Centered-HUD.ps1') -Action Disable -TargetWidth $TargetWidth -TargetHeight $TargetHeight}
      }
@@ -81,12 +91,12 @@ try{
     if(!$hub.Allowed){Start-Sleep -Milliseconds 150;continue}
    }
    if($blocked -and $eligibility.Allowed -and !$hub.Allowed){Log ('Offline campaign confirmed: '+$eligibility.MapPath);$lastWidth=0;$blocked=$false}
-   $device=Ptr ($moduleBase+0x43D0E08);if(!$device){Start-Sleep -Milliseconds 100;continue}
+   $device=Ptr ($moduleBase+([SC2Addresses]::Rva(0x43D0E08)));if(!$device){Start-Sleep -Milliseconds 100;continue}
    $resource=Ptr ($device+0x80);if(!$resource){Start-Sleep -Milliseconds 100;continue}
    $packed=U32 ($resource+0x60);$width=$packed -band 0x3fff;$height=($packed -shr 14) -band 0x3fff
    if($width -ne $lastWidth -or $height -ne $lastHeight){Log ('Display '+$width+'x'+$height+'.');$phase=if($width -eq $TargetWidth -and $height -eq $TargetHeight){'Waiting for campaign mission'}else{'Preparing campaign display'};State $phase @{GamePid=$game.Id;Width=$width;Height=$height;StartupOverrides=(U32 ($attached.State+36))};$lastWidth=$width;$lastHeight=$height}
-   $ui=Ptr ($moduleBase+0x4032368)
-   $uiReady=$ui -and (Ptr $ui) -eq ($moduleBase+0x2D522A8)
+   $ui=Ptr ($moduleBase+([SC2Addresses]::Rva(0x4032368)))
+   $uiReady=$ui -and (Ptr $ui) -eq ($moduleBase+([SC2Addresses]::Rva(0x2D522A8)))
    $atTarget=$width -eq $TargetWidth -and $height -eq $TargetHeight
    $displayContext=if($hub.Allowed){'Hub:'+ $hub.Key}else{$eligibility.MapPath}
    $refreshKey=('{0}:{1:X}:{2:X}' -f $displayContext,$ui,$device)
@@ -115,8 +125,8 @@ try{
     Start-Sleep -Milliseconds 25;continue
    }
 
-   $ui=Ptr ($moduleBase+0x4032368)
-   if(!$ui -or (Ptr $ui) -ne ($moduleBase+0x2D522A8)){$context='';$hudReady='';Start-Sleep -Milliseconds 100;continue}
+   $ui=Ptr ($moduleBase+([SC2Addresses]::Rva(0x4032368)))
+   if(!$ui -or (Ptr $ui) -ne ($moduleBase+([SC2Addresses]::Rva(0x2D522A8)))){$context='';$hudReady='';Start-Sleep -Milliseconds 100;continue}
    $console=Ptr ($ui+0xc60);$owner=Ptr ($ui+0xc68);$world=Ptr ($ui+0xc18)
    if(!$console -or !$owner -or !$world){Start-Sleep -Milliseconds 100;continue}
    $key=('{0:X}:{1:X}:{2:X}:{3:X}:{4}' -f $ui,$owner,$console,$world,$eligibility.MapPath)
@@ -134,7 +144,7 @@ try{
    if($hudReady -ne $key -and !$pendingHud -and (Get-Date) -ge $attemptAfter){
     [SC2CampaignGate]::Require($game.Id,$moduleBase)
     $attemptAfter=(Get-Date).AddSeconds(2)
-    if((Ptr $console) -ne ($moduleBase+0x2D62E98) -or (Ptr $world) -ne ($moduleBase+0x2D6C370)){throw 'Waiting for the supported campaign console.'}
+    if((Ptr $console) -ne ($moduleBase+([SC2Addresses]::Rva(0x2D62E98))) -or (Ptr $world) -ne ($moduleBase+([SC2Addresses]::Rva(0x2D6C370)))){throw 'Waiting for the supported campaign console.'}
     $result=& (Join-Path $PSScriptRoot 'Centered-HUD.ps1') -Action Enable -TargetWidth $TargetWidth -TargetHeight $TargetHeight
     $pendingHud=$key;$pendingSince=Get-Date;Log 'Mission UI ready; queued native HUD and viewport update.';State 'Applying campaign HUD' @{GamePid=$game.Id;Width=$width;Height=$height}
    }

@@ -1,19 +1,20 @@
 ﻿param([ValidateSet('Install','Status','Disable')][string]$Action='Status',[int]$TargetWidth=3440,[int]$TargetHeight=1440)
 $ErrorActionPreference='Stop'
-if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
+if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'SC2Addresses.cs'),(Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
 [SC2CampaignModeHook]::ValidateTarget($TargetWidth,$TargetHeight)
 $recordPath=Join-Path $PSScriptRoot 'engine-reset-session.json'
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
 if($games.Count -ne 1){throw 'Open exactly one StarCraft II session first'}
 $game=$games[0]
 $base=$game.MainModule.BaseAddress.ToInt64()
+[SC2Addresses]::Ensure($game.Id,[System.UInt64]$base)
 function ReadBytes([System.UInt64]$address,[int]$size){$bytes=[SC2Memory]::Read($game.Id,$address,$size);if(!$bytes){throw 'Cannot read graphics state'};return ,$bytes}
 function Ptr([System.UInt64]$address){[BitConverter]::ToUInt64((ReadBytes $address 8),0)}
 function U32([System.UInt64]$address){[BitConverter]::ToUInt32((ReadBytes $address 4),0)}
 function Hex([string]$value){[Convert]::ToUInt64($value,16)}
-$device=Ptr ($base+0x43D0E08)
-$originalVtable=[System.UInt64]($base+0x2DB8098)
-$resourceVtable=[System.UInt64]($base+0x2DB9DA8)
+$device=Ptr ($base+([SC2Addresses]::Rva(0x43D0E08)))
+$originalVtable=[System.UInt64]($base+([SC2Addresses]::Rva(0x2DB8098)))
+$resourceVtable=[System.UInt64]($base+([SC2Addresses]::Rva(0x2DB9DA8)))
 $record=$null
 if(Test-Path -LiteralPath $recordPath){
  $candidate=Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
@@ -25,7 +26,7 @@ if($Action -eq 'Install'){
  if($record -and (Ptr $device) -eq (Hex $record.VTable)){Write-Output 'Campaign ultrawide wrapper is already attached.'}
  else{
   if((Ptr $device) -ne $originalVtable){throw 'Unexpected graphics device type'}
-  if((Ptr ($originalVtable+0x28)) -ne ($base+0xE60F70)){throw 'Mode selection method mismatch'}
+  if((Ptr ($originalVtable+0x28)) -ne ($base+([SC2Addresses]::Rva(0xE60F70)))){throw 'Mode selection method mismatch'}
   $resource=Ptr ($device+0x80)
   if((Ptr $resource) -ne $resourceVtable){throw 'Unexpected display resource type'}
   $packed=U32 ($resource+0x60)

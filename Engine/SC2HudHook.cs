@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public class SC2HudHook {
@@ -56,7 +56,7 @@ public class SC2HudHook {
   if(expected.Length!=replacement.Length)throw new Exception("Write length mismatch");var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("OpenProcess");try{var old=Read(h,address,expected.Length);for(int i=0;i<old.Length;i++)if(old[i]!=expected[i])throw new Exception("Game data changed; no write");Write(h,address,replacement);}finally{CloseHandle(h);}
  }
  public static Prepared Prepare(int pid,ulong owner,ulong table,ulong setter,Command[] commands){
-  ulong module=table-0x2D51C58;SC2CampaignGate.Require(pid,module);
+  ulong module=table-SC2Addresses.Rva(0x2D51C58);SC2CampaignGate.Require(pid,module);
   if(commands.Length<1||commands.Length>16)throw new Exception("Invalid command count");
   var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("OpenProcess");IntPtr data=IntPtr.Zero,code=IntPtr.Zero;bool ready=false;
   try{

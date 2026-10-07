@@ -1,10 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class SC2CampaignGate {
- public const ulong SessionRva=0x5a94ed8, MapRva=0x5704068;
+ public static ulong SessionRva {get{return SC2Addresses.Rva(0x5a94ed8);}} public static ulong MapRva {get{return SC2Addresses.Rva(0x5704068);}}
  public const int Revision=2;
  [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr OpenProcess(uint a,bool inherit,int pid);
  [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr h,IntPtr a,byte[] b,UIntPtr n,out UIntPtr got);
@@ -17,6 +17,7 @@ public static class SC2CampaignGate {
  public static Status Check(int pid,ulong module){
   IntPtr h=IntPtr.Zero;var result=new Status();
   try{
+   SC2Addresses.Ensure(pid,module);
    using(var p=Process.GetProcessById(pid)){if(!String.Equals(System.IO.Path.GetFileName(p.MainModule.FileName),"SC2_x64.exe",StringComparison.OrdinalIgnoreCase)||(ulong)p.MainModule.BaseAddress.ToInt64()!=module){result.Reason="Game executable identity changed.";return result;}}
    h=OpenProcess(0x410,false,pid);if(h==IntPtr.Zero)return result;
    // Repeat the complete observation to reject a changing mission/session.

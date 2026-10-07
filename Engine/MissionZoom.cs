@@ -34,22 +34,31 @@ public sealed class SC2MissionZoom {
  public static byte[] Presets(byte[] original,int percent,int steps){
   Validate(percent);ValidateSteps(steps);int count=original.Length/0x90;if(count<2||count>64||original.Length!=count*0x90)throw new ArgumentException("Unexpected zoom presets.");
   for(int i=0;i<count;i++){
-   float d=F(original,i*0x90+0x24);if(BitConverter.ToUInt32(original,i*0x90+0x20)!=1||!Finite(d)||d<=0||d>1000||(i>0&&d>=F(original,(i-1)*0x90+0x24)))throw new ArgumentException("Unexpected zoom distances.");
+   float d=F(original,i*0x90+0x24);if(BitConverter.ToUInt32(original,i*0x90+0x20)!=1||!Finite(d)||d<=0||d>1000||(i>0&&d>F(original,(i-1)*0x90+0x24)))throw new ArgumentException("Unexpected zoom distances.");
    for(int j=0;j<18;j++){uint flag=BitConverter.ToUInt32(original,i*0x90+j*8);if(flag>1||flag!=BitConverter.ToUInt32(original,j*8)||(flag==1&&!Finite(F(original,i*0x90+j*8+4))))throw new ArgumentException("Unexpected zoom preset fields.");}
   }
   var result=new byte[steps*0x90];float maximum=Distance(F(original,0x24),percent),minimum=F(original,(count-1)*0x90+0x24);
   for(int i=0;i<steps;i++){
    float distance=maximum-(maximum-minimum)*i/(steps-1);int a=0;
-   while(a<count-2&&distance<F(original,(a+1)*0x90+0x24))a++;
-   float high=F(original,a*0x90+0x24),low=F(original,(a+1)*0x90+0x24),t=Math.Max(0,Math.Min(1,(high-distance)/(high-low)));
+   float t;
+   // Some missions have consecutive equal distances with different tilts.
+   // Preserve the closest pose and skip flat segments when interpolating distance.
+   if(maximum==minimum){float position=(count-1f)*i/(steps-1);a=Math.Min(count-2,(int)position);t=position-a;}
+   else if(i==steps-1){a=count-2;t=1;distance=minimum;}
+   else if(distance>=F(original,0x24)){a=0;t=0;}
+   else{
+    while(a<count-2&&distance<=F(original,(a+1)*0x90+0x24))a++;
+    float high=F(original,a*0x90+0x24),low=F(original,(a+1)*0x90+0x24);
+    t=high>low?Math.Max(0,Math.Min(1,(high-distance)/(high-low))):1;
+   }
    Array.Copy(original,a*0x90,result,i*0x90,0x90);
    for(int j=0;j<18;j++)if(BitConverter.ToUInt32(original,a*0x90+j*8)==1)Set(result,i*0x90+j*8+4,F(original,a*0x90+j*8+4)*(1-t)+F(original,(a+1)*0x90+j*8+4)*t);
    Set(result,i*0x90+0x24,distance);
   }
   return result;
  }
- static int Nearest(byte[] table,float distance){int best=0;float error=Single.MaxValue;for(int i=0;i<table.Length/0x90;i++){float e=Math.Abs(F(table,i*0x90+0x24)-distance);if(e<error){best=i;error=e;}}return best;}
- ulong Observe(){try{if(!allowed())return 0;ulong c=Ptr(Ptr(Ptr(Ptr(module+0x4046470)+0x1b28)+0x550)+0x10),v=Ptr(c);if(v!=module+0x2d609e8&&(hook==null||c!=hook.Camera||v!=hook.Table))return 0;if(Ptr(Ptr(c+8))!=0||U32(c+0xa8)!=0)return 0;return c;}catch{return 0;}}
+ static int Nearest(byte[] table,float distance){int best=0;float error=Single.MaxValue;for(int i=0;i<table.Length/0x90;i++){float e=Math.Abs(F(table,i*0x90+0x24)-distance);if(e<=error){best=i;error=e;}}return best;}
+ ulong Observe(){try{if(!allowed())return 0;ulong c=Ptr(Ptr(Ptr(Ptr(module+SC2Addresses.Rva(0x4046470))+0x1b28)+0x550)+0x10),v=Ptr(c);if(v!=module+SC2Addresses.Rva(0x2d609e8)&&(hook==null||c!=hook.Camera||v!=hook.Table))return 0;if(Ptr(Ptr(c+8))!=0||U32(c+0xa8)!=0)return 0;return c;}catch{return 0;}}
  bool Owned(){try{return hook!=null&&Ptr(hook.Camera)==hook.Table&&Ptr(hook.State+0x80)==Magic;}catch{return false;}}
  bool Quiet(){Put(hook.State,BitConverter.GetBytes(0));for(int i=0;i<20;i++){if(U32(hook.State+4)==0)return true;Thread.Sleep(1);}return false;}
  public bool Tick(int percent,int steps){
@@ -60,13 +69,13 @@ public sealed class SC2MissionZoom {
    ulong data=unchecked(Ptr(camera+0x18)<<5);int count=(int)U32(data+0xd8);ulong array=Ptr(data+0xe8);if(count<2||count>64||array<0x10000)return false;
    if(percent==0&&steps==count)return true;
    byte[] baseline=read(array,count*0x90);Presets(baseline,percent,steps);
-   if(Ptr(module+0x2d609e8+0x70)!=module+0xbf7840)throw new InvalidOperationException("This camera's zoom controls are unavailable.");
+   if(Ptr(module+SC2Addresses.Rva(0x2d609e8)+0x70)!=module+SC2Addresses.Rva(0xbf7840))throw new InvalidOperationException("This camera's zoom controls are unavailable.");
    var h=new Hook{Camera=camera,Data=data,Array=array,Count=count,Original=baseline};h.State=allocate(8192);h.Table=h.State+0x1010;h.Code=allocate(4096);
-   var vt=read(module+0x2d609e8-16,0x88);Array.Copy(BitConverter.GetBytes(h.Code),0,vt,0x80,8);Put(h.Table-16,vt);
+   var vt=read(module+SC2Addresses.Rva(0x2d609e8)-16,0x88);Array.Copy(BitConverter.GetBytes(h.Code),0,vt,0x80,8);Put(h.Table-16,vt);
    Put(h.State+0x10,BitConverter.GetBytes(camera));Put(h.State+0x18,BitConverter.GetBytes(data));Put(h.State+0x20,BitConverter.GetBytes((ulong)count));Put(h.State+0x28,BitConverter.GetBytes(array));Put(h.State+0x38,BitConverter.GetBytes(h.State+0x100));Put(h.State+0x80,BitConverter.GetBytes(Magic));
-   var code=Build(h.State,module+0xbf7840,module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva,module+0x4046470);if(code.Length>4096)throw new InvalidOperationException("Zoom callback is too large.");Put(h.Code,code);executable(h.Code,4096);
+   var code=Build(h.State,module+SC2Addresses.Rva(0xbf7840),module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva,module+SC2Addresses.Rva(0x4046470));if(code.Length>4096)throw new InvalidOperationException("Zoom callback is too large.");Put(h.Code,code);executable(h.Code,4096);
    if(Observe()!=camera||Ptr(data+0xe8)!=array||U32(data+0xd8)!=count)return false;
-   hook=h;CaptureShadow();Save();write(camera,BitConverter.GetBytes(module+0x2d609e8),BitConverter.GetBytes(h.Table));
+   hook=h;CaptureShadow();Save();write(camera,BitConverter.GetBytes(module+SC2Addresses.Rva(0x2d609e8)),BitConverter.GetBytes(h.Table));
   }
   if(hook.Percent==percent&&hook.Steps==steps)return true;
   if(!Owned()||!Quiet())return false;
@@ -83,7 +92,7 @@ public sealed class SC2MissionZoom {
  }
  void CaptureShadow(){
   if(hook.ShadowOriginal!=null)return;
-  var bytes=read(hook.Camera+0x118,12);var cipher=read(module+0x3a902e0,0x4000);
+  var bytes=read(hook.Camera+0x118,12);var cipher=read(module+SC2Addresses.Rva(0x3a902e0),0x4000);
   for(int i=0;i<3;i++){float value=Decode(BitConverter.ToUInt32(bytes,i*4),cipher);if(!Finite(value)||value<=0||value>100000)return;}
   hook.ShadowOriginal=bytes;
  }
@@ -91,7 +100,7 @@ public sealed class SC2MissionZoom {
   if(Observe()!=hook.Camera)return;CaptureShadow();if(hook.ShadowOriginal==null)return;
   var before=read(hook.Camera+0x118,12);
   if(!Equal(before,hook.ShadowApplied??hook.ShadowOriginal)&&!Equal(before,hook.ShadowOriginal))return;
-  var cipher=read(module+0x3a902e0,0x4000);var next=new byte[12];
+  var cipher=read(module+SC2Addresses.Rva(0x3a902e0),0x4000);var next=new byte[12];
   // Use this mission's original clip, never an already expanded value.
   if(percent==0)Array.Copy(hook.ShadowOriginal,next,12);
   else{var value=Encode(ShadowClip(Decode(BitConverter.ToUInt32(hook.ShadowOriginal,0),cipher),percent),cipher);for(int i=0;i<3;i++)Array.Copy(value,0,next,i*4,4);}
@@ -104,7 +113,7 @@ public sealed class SC2MissionZoom {
   var current=read(hook.Camera+0x118,12);if(Equal(current,hook.ShadowApplied)&&!Equal(current,hook.ShadowOriginal))write(hook.Camera+0x118,current,hook.ShadowOriginal);
  }
  void Adjust(float distance,float pitch){
-  if(Observe()!=hook.Camera)return;var table=read(module+0x3a902e0,0x4000);
+  if(Observe()!=hook.Camera)return;var table=read(module+SC2Addresses.Rva(0x3a902e0),0x4000);
   foreach(var field in new[]{new[]{0x13c,0x24},new[]{0x160,0x2c}}){var old=read(hook.Camera+(ulong)field[0],12);float value=field[0]==0x13c?distance:pitch;float target=Decode(BitConverter.ToUInt32(old,0),table);bool resting=Finite(target);for(int i=1;i<3;i++)resting&=Math.Abs(Decode(BitConverter.ToUInt32(old,i*4),table)-target)<.1f;if(!resting)continue;var next=new byte[12];for(int i=0;i<3;i++)Array.Copy(Encode(value,table),0,next,i*4,4);write(hook.Camera+(ulong)field[0],old,next);}
  }
  public bool Stop(){
@@ -113,7 +122,7 @@ public sealed class SC2MissionZoom {
    if(!Quiet())return false;
    if(Observe()==hook.Camera){int index=(int)U32(hook.Camera+0xa4);if(index>=0&&index<hook.Count)Adjust(F(hook.Original,index*0x90+0x24),F(hook.Original,index*0x90+0x2c));}
    RestoreShadow();
-   if(Owned())write(hook.Camera,BitConverter.GetBytes(hook.Table),BitConverter.GetBytes(module+0x2d609e8));
+   if(Owned())write(hook.Camera,BitConverter.GetBytes(hook.Table),BitConverter.GetBytes(module+SC2Addresses.Rva(0x2d609e8)));
   }
   // Detached callbacks are retained until process exit in case a native caller
   // already fetched their address. Game-owned preset arrays are never replaced

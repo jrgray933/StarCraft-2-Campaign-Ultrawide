@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public class SC2CampaignModeHook {
@@ -65,7 +65,7 @@ public class SC2CampaignModeHook {
  public static Prepared Prepare(int pid,ulong originalVtable){return Prepare(pid,originalVtable,3440,1440);}
  public static Prepared Prepare(int pid,ulong originalVtable,int width,int height){
   ValidateTarget(width,height);
-  ulong module=originalVtable-0x2DB8098;SC2DisplayGate.Require(pid,module);
+  ulong module=originalVtable-SC2Addresses.Rva(0x2DB8098);SC2DisplayGate.Require(pid,module);
   var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("OpenProcess failed");IntPtr data=IntPtr.Zero,code=IntPtr.Zero;bool ready=false;
   try{
    // Preserve the RTTI prefix and all 51 methods; the table ends at offset 0x198.

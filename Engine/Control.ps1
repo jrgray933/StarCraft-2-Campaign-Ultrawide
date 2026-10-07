@@ -7,7 +7,12 @@ try {
    [void][Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors)
    if($errors.Count){throw ($errors | Out-String)}
   }
-  Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
+  $compilerOptions=New-Object CodeDom.Compiler.CompilerParameters
+  $compilerOptions.CompilerOptions='/define:SC2_TESTS'
+  [void]$compilerOptions.ReferencedAssemblies.Add('System.dll')
+  [void]$compilerOptions.ReferencedAssemblies.Add('System.Core.dll')
+  Add-Type -CompilerParameters $compilerOptions -Path @((Join-Path $PSScriptRoot 'SC2Addresses.cs'),(Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignDisplayRefresh.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2AutoStart.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'SC2HudScale.cs'))
+  [SC2Addresses]::UseTestAddresses()
   [SC2CampaignModeHook]::ModeSelfTest()
   [SC2HudHook]::SelfTest()
   [SC2HudScale]::SelfTest()

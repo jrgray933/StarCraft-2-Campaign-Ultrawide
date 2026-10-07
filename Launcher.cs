@@ -30,7 +30,7 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyDescription("Single-player campaign display helper")]
 
-[assembly: AssemblyVersion("1.8.0.0")]
+[assembly: AssemblyVersion("1.9.0.0")]
 
 static class Engine {
 
@@ -52,7 +52,7 @@ static class Engine {
 
   }
 
-  if(files.Count!=14 || !files.ContainsKey("CampaignGate.cs") || !files.ContainsKey("CampaignDisplayRefresh.cs") || !files.ContainsKey("HubCamera.cs")) throw new Exception("The embedded engine is incomplete.");
+  if(files.Count!=15 || !files.ContainsKey("SC2Addresses.cs") || !files.ContainsKey("CampaignGate.cs") || !files.ContainsKey("CampaignDisplayRefresh.cs") || !files.ContainsKey("HubCamera.cs")) throw new Exception("The embedded engine is incomplete.");
 
   string version;
 

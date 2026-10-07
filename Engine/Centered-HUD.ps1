@@ -1,12 +1,13 @@
 ﻿param([ValidateSet('Enable','Disable','Status')][string]$Action='Status',[int]$TargetWidth=3440,[int]$TargetHeight=1440)
 $ErrorActionPreference='Stop'
-if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
+if(-not ('SC2CampaignModeHook' -as [type])){Add-Type -Path @((Join-Path $PSScriptRoot 'SC2Addresses.cs'),(Join-Path $PSScriptRoot 'CampaignGate.cs'),(Join-Path $PSScriptRoot 'HubCamera.cs'),(Join-Path $PSScriptRoot 'CampaignModeHook.cs'),(Join-Path $PSScriptRoot 'SC2HudHook.cs'),(Join-Path $PSScriptRoot 'MemoryRead.cs'))}
 [SC2CampaignModeHook]::ValidateTarget($TargetWidth,$TargetHeight)
 $hudInset=[SC2CampaignModeHook]::HudInset($TargetWidth,$TargetHeight)
 $games=@(Get-Process SC2_x64 -ErrorAction SilentlyContinue)
 if($games.Count -ne 1){throw 'Open exactly one StarCraft II campaign session first.'}
 $game=$games[0]
 $moduleBase=[System.UInt64]$game.MainModule.BaseAddress.ToInt64()
+[SC2Addresses]::Ensure($game.Id,[System.UInt64]$moduleBase)
 function ReadBytes([System.UInt64]$address,[int]$size){$bytes=[SC2Memory]::Read($game.Id,$address,$size);if(!$bytes){throw 'Cannot read HUD state.'};return ,$bytes}
 function Ptr([System.UInt64]$address){[BitConverter]::ToUInt64((ReadBytes $address 8),0)}
 function U32([System.UInt64]$address){[BitConverter]::ToUInt32((ReadBytes $address 4),0)}
@@ -20,12 +21,12 @@ function Signal([System.UInt64]$state,[System.UInt64]$owner,[int]$request){
  $flag=ReadBytes ($owner+0x28) 1
  WriteChecked ($owner+0x28) $flag ([byte[]]@([byte]($flag[0] -bor 0x10)))
 }
-$gameUI=Ptr ($moduleBase+0x4032368)
-if(!$gameUI -or (Ptr $gameUI) -ne ($moduleBase+0x2D522A8)){throw 'Load a campaign mission before using the HUD helper.'}
+$gameUI=Ptr ($moduleBase+([SC2Addresses]::Rva(0x4032368)))
+if(!$gameUI -or (Ptr $gameUI) -ne ($moduleBase+([SC2Addresses]::Rva(0x2D522A8)))){throw 'Load a campaign mission before using the HUD helper.'}
 $console=Ptr ($gameUI+0xc60)
 $owner=Ptr ($gameUI+0xc68)
 $world=Ptr ($gameUI+0xc18)
-$originalTable=$moduleBase+0x2D51C58
+$originalTable=$moduleBase+([SC2Addresses]::Rva(0x2D51C58))
 $recordPath=Join-Path $PSScriptRoot 'hud-runtime-session.json'
 $record=$null
 if(Test-Path -LiteralPath $recordPath){$candidate=Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json;if($candidate.GamePid -eq $game.Id -and ([datetime]$candidate.Started).ToUniversalTime().Ticks -eq $game.StartTime.ToUniversalTime().Ticks -and $candidate.Owner -eq $owner.ToString('X')){$record=$candidate}}
@@ -41,14 +42,14 @@ if($Action -eq 'Enable' -and $record -and ($record.Console -ne $console.ToString
  $record=$null
 }
 if($Action -eq 'Enable'){
- $device=Ptr ($moduleBase+0x43D0E08);$resource=Ptr ($device+0x80);$packed=U32 ($resource+0x60)
+ $device=Ptr ($moduleBase+([SC2Addresses]::Rva(0x43D0E08)));$resource=Ptr ($device+0x80);$packed=U32 ($resource+0x60)
  if(($packed -band 0x3fff) -ne $TargetWidth -or (($packed -shr 14) -band 0x3fff) -ne $TargetHeight){throw 'Activate your selected resolution before centering the HUD.'}
  if($record -and ($record.TargetWidth -ne $TargetWidth -or $record.TargetHeight -ne $TargetHeight)){throw 'Close StarCraft II before changing resolution.'}
  if(!$record -or (Ptr $owner) -ne (Hex $record.VTable)){
-  if((Ptr $owner) -ne $originalTable -or (Ptr $console) -ne ($moduleBase+0x2D62E98)){throw 'Unexpected console frame type; no changes made.'}
-  if((Ptr ($originalTable+0x148)) -ne ($moduleBase+0x16B53C0)){throw 'Layout callback mismatch.'}
+  if((Ptr $owner) -ne $originalTable -or (Ptr $console) -ne ($moduleBase+([SC2Addresses]::Rva(0x2D62E98)))){throw 'Unexpected console frame type; no changes made.'}
+  if((Ptr ($originalTable+0x148)) -ne ($moduleBase+([SC2Addresses]::Rva(0x16B53C0)))){throw 'Layout callback mismatch.'}
   $expected=[byte[]]@(0x40,0x53,0x55,0x57,0x48,0x83,0xec,0x50,0x0f,0x29,0x74,0x24,0x40,0x49,0x8b,0xe8,0x66,0x41,0x0f,0x6e,0xf1,0x48,0x8b,0xf9,0xf3,0x0f,0x11,0x74,0x24,0x20,0x8b,0xda)
-  if([BitConverter]::ToString((ReadBytes ($moduleBase+0x16BCFC0) $expected.Length)) -ne [BitConverter]::ToString($expected)){throw 'Native anchor function signature mismatch.'}
+  if([BitConverter]::ToString((ReadBytes ($moduleBase+([SC2Addresses]::Rva(0x16BCFC0))) $expected.Length)) -ne [BitConverter]::ToString($expected)){throw 'Native anchor function signature mismatch.'}
   $commands=New-Object 'System.Collections.Generic.List[SC2HudHook+Command]'
   foreach($frame in @($console,$owner)){
    $parent=Ptr ($frame+0x50)
@@ -61,7 +62,7 @@ if($Action -eq 'Enable'){
     $command=New-Object 'SC2HudHook+Command';$command.Frame=$frame;$command.Parent=$parent;$command.Side=$side;$command.Position=$newPosition;$command.Offset=$newOffset;$command.OldPosition=$position;$command.OldOffset=0;$commands.Add($command)
    }
   }
-  $prepared=[SC2HudHook]::Prepare($game.Id,$owner,$originalTable,($moduleBase+0x16BCFC0),$commands.ToArray())
+  $prepared=[SC2HudHook]::Prepare($game.Id,$owner,$originalTable,($moduleBase+([SC2Addresses]::Rva(0x16BCFC0))),$commands.ToArray())
   $record=[pscustomobject]@{GateRevision=2;GamePid=$game.Id;Started=$game.StartTime.ToString('o');Build=$game.MainModule.FileVersionInfo.FileVersion;TargetWidth=$TargetWidth;TargetHeight=$TargetHeight;Owner=$owner.ToString('X');Console=$console.ToString('X');OriginalVTable=$originalTable.ToString('X');VTable=$prepared.VTable.ToString('X');Code=$prepared.Code.ToString('X');State=$prepared.State.ToString('X');Length=$prepared.Length;Commands=@($commands | ForEach-Object {[pscustomobject]@{Frame=$_.Frame.ToString('X');Parent=$_.Parent.ToString('X');Side=$_.Side;Position=$_.Position;Offset=$_.Offset;OldPosition=$_.OldPosition;OldOffset=$_.OldOffset}})}
   $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $recordPath -Encoding UTF8
   if((Ptr ($gameUI+0xc68)) -ne $owner){throw 'Mission UI changed before attachment.'}
@@ -71,7 +72,7 @@ if($Action -eq 'Enable'){
  if((U32 $stateAddress) -ne 0 -or (U32 ($stateAddress+4)) -ne 0){throw 'A HUD update is pending; return to the mission first.'}
  if(!$record.WorldOffsetAddress){
   $world=Ptr ($gameUI+0xc18)
-  if((Ptr $world) -ne ($moduleBase+0x2D6C370)){throw 'Unexpected world panel type.'}
+  if((Ptr $world) -ne ($moduleBase+([SC2Addresses]::Rva(0x2D6C370)))){throw 'Unexpected world panel type.'}
   $worldAnchor=ReadBytes ($world+0x88) 16
   if([BitConverter]::ToUInt64($worldAnchor,0) -ne $gameUI -or [BitConverter]::ToInt16($worldAnchor,8) -ne 2048 -or [BitConverter]::ToSingle($worldAnchor,12) -ne -200 -or [BitConverter]::ToSingle((ReadBytes ($gameUI+0xbfc) 4),0) -ne 200){throw 'World viewport differs from the verified campaign layout.'}
   if((U32 ($stateAddress+48)) -ne 4){throw 'Unexpected HUD command count.'}

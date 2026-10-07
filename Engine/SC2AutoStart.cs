@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -19,7 +19,7 @@ public class SC2AutoStart {
   try{
    if(device<0x10000)return null;
    var pointer=read(device,8);if(pointer==null||pointer.Length!=8)return null;
-   ulong table=BitConverter.ToUInt64(pointer,0),native=module+0x2DB8098;
+   ulong table=BitConverter.ToUInt64(pointer,0),native=module+SC2Addresses.Rva(0x2DB8098);
    if(table==native||table<0x10108)return null;
    ulong state=table-0x108;
    var stateBytes=read(state,4);if(stateBytes==null||stateBytes.Length!=4||BitConverter.ToUInt32(stateBytes,0)!=1)return null;
@@ -28,7 +28,7 @@ public class SC2AutoStart {
    // The copied table must match every native slot and its RTTI pointer,
    // except for the one resolution callback owned by this helper.
    for(int i=0;i<actual.Length;i++)if((i<0x30||i>=0x38)&&actual[i]!=expected[i])return null;
-   ulong code=BitConverter.ToUInt64(actual,0x30),original=module+0xE60F70;
+   ulong code=BitConverter.ToUInt64(actual,0x30),original=module+SC2Addresses.Rva(0xE60F70);
    if(BitConverter.ToUInt64(expected,0x30)!=original)return null;
    byte[] wanted=SC2CampaignModeHook.BuildMode(state,original,width,height,module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva,module+SC2HubGate.SceneRva),live=read(code,wanted.Length);
    if(live==null||live.Length!=wanted.Length)return null;
@@ -47,18 +47,18 @@ public class SC2AutoStart {
   var timer=Stopwatch.StartNew();SC2CampaignModeHook.Prepared prepared=null;ulong module=0,table=0;DateTime started=process.StartTime;
   try{while(timer.ElapsedMilliseconds<timeoutMs){
    if(process.HasExited)throw new Exception("Game exited during startup.");if(File.Exists(stopPath))throw new OperationCanceledException("Automatic helper stopped.");
-   if(module==0){try{var main=process.MainModule;if(!String.Equals(main.FileName,expectedExe,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Game executable path differs from the supported installation.");ValidateExecutable(main.FileName,main.FileVersionInfo.FileVersion);module=(ulong)main.BaseAddress.ToInt64();table=module+0x2DB8098;}catch(System.ComponentModel.Win32Exception){Thread.Sleep(5);continue;}}
+   if(module==0){try{var main=process.MainModule;if(!String.Equals(main.FileName,expectedExe,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Game executable path differs from the supported installation.");ValidateExecutable(main.FileName,main.FileVersionInfo.FileVersion);module=(ulong)main.BaseAddress.ToInt64();SC2Addresses.Ensure(pid,module);table=module+SC2Addresses.Rva(0x2DB8098);}catch(System.ComponentModel.Win32Exception){Thread.Sleep(5);continue;}}
    if(!SC2DisplayGate.Allowed(pid,module)){Thread.Sleep(150);continue;}
    // The D3D9-specific pointer is published by the constructor, before the
    // generic graphics pointer. Only accept the fully installed derived vtable.
-   ulong device=ReadPtr(h,module+0x43D1E10);if(device==0||ReadPtr(h,device)!=table)device=ReadPtr(h,module+0x43D0E08);
+   ulong device=ReadPtr(h,module+SC2Addresses.Rva(0x43D1E10));if(device==0||ReadPtr(h,device)!=table)device=ReadPtr(h,module+SC2Addresses.Rva(0x43D0E08));
    if(device!=0&&ReadPtr(h,device)!=table){
     var existing=InspectExisting((address,size)=>ReadBytes(h,address,size),module,device,width,height);
     if(existing!=null){SC2DisplayGate.Require(pid,module);SaveRecord(process,recordPath,table,existing,width,height);return existing;}
     Thread.Sleep(50);continue;
    }
    if(device!=0&&ReadPtr(h,device)==table){
-    if(prepared==null){if(ReadPtr(h,table+0x28)!=module+0xE60F70||!Signature(h,module+0xE60F70)){Thread.Sleep(2);continue;}prepared=SC2CampaignModeHook.Prepare(pid,table,width,height);}
+    if(prepared==null){if(ReadPtr(h,table+0x28)!=module+SC2Addresses.Rva(0xE60F70)||!Signature(h,module+SC2Addresses.Rva(0xE60F70))){Thread.Sleep(2);continue;}prepared=SC2CampaignModeHook.Prepare(pid,table,width,height);}
     bool hadResource=ReadPtr(h,device+0x80)!=0;
     var result=new Result{Device=device,Code=prepared.Code,State=prepared.State,VTable=prepared.VTable,Length=prepared.Length,AttachedAfterMilliseconds=(DateTime.Now-started).TotalMilliseconds,ResourceAlreadyExisted=hadResource};
     SaveRecord(process,recordPath,table,result,width,height);

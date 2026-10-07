@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
@@ -27,6 +27,7 @@
     <EmbeddedResource Include="Engine\Campaign-Ultrawide.ps1"><LogicalName>Engine.Campaign-Ultrawide.ps1</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\CampaignDisplayRefresh.cs"><LogicalName>Engine.CampaignDisplayRefresh.cs</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\CampaignGate.cs"><LogicalName>Engine.CampaignGate.cs</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="Engine\SC2Addresses.cs"><LogicalName>Engine.SC2Addresses.cs</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\CampaignModeHook.cs"><LogicalName>Engine.CampaignModeHook.cs</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\Centered-HUD.ps1"><LogicalName>Engine.Centered-HUD.ps1</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="Engine\Control.ps1"><LogicalName>Engine.Control.ps1</LogicalName></EmbeddedResource>

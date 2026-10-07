@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 public static class SC2HubGate {
- public const ulong SceneRva=0x4046470;
+ public static ulong SceneRva {get{return SC2Addresses.Rva(0x4046470);}}
  public sealed class Scene {
   public bool Allowed;public string Asset="";public ulong Render,Model,Entry,Definition,Session,Info,Cameras;public uint Index,CameraCount;
   public string Key {get{return Model.ToString("X")+":"+Entry.ToString("X")+":"+Definition.ToString("X");}}
@@ -31,6 +31,7 @@ public static class SC2HubGate {
   s.Allowed=s.Definition>=0x10000;return s;
  }
  public static Scene Check(int pid,ulong module){try{
+  SC2Addresses.Ensure(pid,module);
   using(var p=Process.GetProcessById(pid)){if((ulong)p.MainModule.BaseAddress.ToInt64()!=module||!String.Equals(Path.GetFileName(p.MainModule.FileName),"SC2_x64.exe",StringComparison.OrdinalIgnoreCase))return new Scene();}
   var a=Observe(pid,module);if(!a.Allowed)return a;var b=Observe(pid,module);
   if(!b.Allowed||a.Key!=b.Key||a.Asset!=b.Asset||a.Session!=b.Session||a.Info!=b.Info||a.Render!=b.Render||a.Cameras!=b.Cameras||a.CameraCount!=b.CameraCount)return new Scene();return b;
@@ -100,7 +101,7 @@ public sealed class SC2HubCamera {
  bool Owned(Hook h){try{return Ptr(h.Entry)==h.Table&&Ptr(h.Entry+0x50)==h.Definition&&Ptr(h.Table+0x180)==Magic&&h.State==h.Table+0x200;}catch{return false;}}
  void Load(){if(!File.Exists(record))return;try{
   var lines=File.ReadAllLines(record);if(lines.Length==0||lines[0]!=pid+":"+started)return;
-  for(int i=1;i<lines.Length;i++){var v=lines[i].Split(':');if(v.Length!=9)continue;var h=new Hook{Entry=UInt64.Parse(v[0],NumberStyles.HexNumber),Definition=UInt64.Parse(v[1],NumberStyles.HexNumber),Model=UInt64.Parse(v[2],NumberStyles.HexNumber),Original=UInt64.Parse(v[3],NumberStyles.HexNumber),Table=UInt64.Parse(v[4],NumberStyles.HexNumber),Code=UInt64.Parse(v[5],NumberStyles.HexNumber),State=UInt64.Parse(v[6],NumberStyles.HexNumber),Index=UInt32.Parse(v[7]),OriginalVertical=UInt32.Parse(v[8])};if(h.OriginalVertical<=1&&h.Original==module+0x2e94880&&Owned(h)){Write(h.State,BitConverter.GetBytes(0));hooks.Add(h);}}
+  for(int i=1;i<lines.Length;i++){var v=lines[i].Split(':');if(v.Length!=9)continue;var h=new Hook{Entry=UInt64.Parse(v[0],NumberStyles.HexNumber),Definition=UInt64.Parse(v[1],NumberStyles.HexNumber),Model=UInt64.Parse(v[2],NumberStyles.HexNumber),Original=UInt64.Parse(v[3],NumberStyles.HexNumber),Table=UInt64.Parse(v[4],NumberStyles.HexNumber),Code=UInt64.Parse(v[5],NumberStyles.HexNumber),State=UInt64.Parse(v[6],NumberStyles.HexNumber),Index=UInt32.Parse(v[7]),OriginalVertical=UInt32.Parse(v[8])};if(h.OriginalVertical<=1&&h.Original==module+SC2Addresses.Rva(0x2e94880)&&Owned(h)){Write(h.State,BitConverter.GetBytes(0));hooks.Add(h);}}
  }catch{throw new InvalidOperationException("Close the game before restarting camera setup.");}}
  void Save(){var lines=new List<string>{pid+":"+started};foreach(var h in hooks)lines.Add(String.Format("{0:X}:{1:X}:{2:X}:{3:X}:{4:X}:{5:X}:{6:X}:{7}:{8}",h.Entry,h.Definition,h.Model,h.Original,h.Table,h.Code,h.State,h.Index,h.OriginalVertical));File.WriteAllLines(record,lines);}
  bool Restore(Hook h){if(!Owned(h))return true;Write(h.State,BitConverter.GetBytes(0));if(U32(h.State+4)!=0)return false;
@@ -127,18 +128,18 @@ public sealed class SC2HubCamera {
  }
  bool PrepareCamera(SC2HubGate.Scene scene,uint index,ulong entry,ulong definition,int selected,double aspect){
   foreach(var h in hooks)if(h.Entry==entry&&Owned(h)){if(U32(h.State)!=(uint)selected)Write(h.State,BitConverter.GetBytes(selected));return U32(h.State+8)>0;}
-  if(definition<0x10000||U32(definition+0x24)>1||Ptr(entry)!=module+0x2e94880||Ptr(module+0x2e94888)!=module+0x14b4090){
+  if(definition<0x10000||U32(definition+0x24)>1||Ptr(entry)!=module+SC2Addresses.Rva(0x2e94880)||Ptr(module+SC2Addresses.Rva(0x2e94888))!=module+SC2Addresses.Rva(0x14b4090)){
    if(index==scene.Index)throw new InvalidOperationException("This hub camera is not supported yet.");return false;
   }
   var latest=SC2HubGate.Check(pid,module);if(!latest.Allowed||!SameCameraSet(scene,latest))return false;
   var process=OpenProcess(0x438,false,pid);if(process==IntPtr.Zero)throw new InvalidOperationException("Cannot open the hub camera.");
   try{
-   var h=new Hook{Entry=entry,Definition=definition,Model=scene.Model,Index=index,Original=module+0x2e94880,OriginalVertical=U32(definition+0x24)};
+   var h=new Hook{Entry=entry,Definition=definition,Model=scene.Model,Index=index,Original=module+SC2Addresses.Rva(0x2e94880),OriginalVertical=U32(definition+0x24)};
    h.Table=(ulong)VirtualAllocEx(process,IntPtr.Zero,(UIntPtr)4096,0x3000,4).ToInt64();h.Code=(ulong)VirtualAllocEx(process,IntPtr.Zero,(UIntPtr)4096,0x3000,4).ToInt64();if(h.Table==0||h.Code==0)throw new InvalidOperationException("Cannot allocate hub camera setup.");h.State=h.Table+0x200;
    var data=SC2HubGate.Read(pid,h.Original,0x100);Array.Copy(BitConverter.GetBytes(h.Code),0,data,8,8);Write(process,h.Table,data);Write(process,h.Table+0x180,BitConverter.GetBytes(Magic));
    Write(process,h.State,BitConverter.GetBytes(selected));Write(process,h.State+0x10,BitConverter.GetBytes(.5f));Write(process,h.State+0x14,BitConverter.GetBytes(2f));Write(process,h.State+0x18,BitConverter.GetBytes(16f/9f));
    Write(process,h.State+0x1c,BitConverter.GetBytes((float)aspect));Write(process,h.State+0x20,BitConverter.GetBytes((float)(10*Math.PI/180)));Write(process,h.State+0x24,BitConverter.GetBytes((float)(89*Math.PI/180)));Write(process,h.State+0x28,BitConverter.GetBytes(h.OriginalVertical));
-   var code=Build(h.State,module+0x14b4090,h.Entry,h.Definition,h.Model,h.Index,module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva,module+SC2HubGate.SceneRva);if(code.Length>4096)throw new InvalidOperationException("Camera callback is too large.");Write(process,h.Code,code);uint old;if(!VirtualProtectEx(process,(IntPtr)(long)h.Code,(UIntPtr)4096,0x20,out old)||!FlushInstructionCache(process,(IntPtr)(long)h.Code,(UIntPtr)code.Length))throw new InvalidOperationException("Cannot prepare hub camera callback.");
+   var code=Build(h.State,module+SC2Addresses.Rva(0x14b4090),h.Entry,h.Definition,h.Model,h.Index,module+SC2CampaignGate.SessionRva,module+SC2CampaignGate.MapRva,module+SC2HubGate.SceneRva);if(code.Length>4096)throw new InvalidOperationException("Camera callback is too large.");Write(process,h.Code,code);uint old;if(!VirtualProtectEx(process,(IntPtr)(long)h.Code,(UIntPtr)4096,0x20,out old)||!FlushInstructionCache(process,(IntPtr)(long)h.Code,(UIntPtr)code.Length))throw new InvalidOperationException("Cannot prepare hub camera callback.");
    latest=SC2HubGate.Check(pid,module);if(!latest.Allowed||!SameCameraSet(scene,latest)||Ptr(h.Entry)!=h.Original||Ptr(h.Entry+0x50)!=h.Definition)return false;
    hooks.Add(h);Save();Write(process,h.Entry,BitConverter.GetBytes(h.Table));return false;
   }finally{CloseHandle(process);}

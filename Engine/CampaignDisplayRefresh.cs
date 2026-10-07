@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 public static class SC2CampaignDisplayRefresh {
- public const ulong RequestRva=0x3a12701;
+ public static ulong RequestRva {get{return SC2Addresses.Rva(0x3a12701);}}
  [DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")]static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
  public static bool IsForeground(int pid){uint actual;GetWindowThreadProcessId(GetForegroundWindow(),out actual);return actual==(uint)pid;}
@@ -14,17 +14,18 @@ public static class SC2CampaignDisplayRefresh {
   if(!IsForeground(pid))return "Waiting for game focus";
   // These two booleans are the normal graphics-settings queue, not the
   // D3D lost-device reset flag. The game consumes and clears them itself.
-  byte[] signature={0x88,0x0d,0x6b,0x84,0x7e,0x03,0x88,0x15,0x66,0x84,0x7e,0x03,0xc3};
-  var live=Read(pid,module+0x22a290,signature.Length);
-  for(int i=0;i<live.Length;i++)if(live[i]!=signature[i])throw new InvalidOperationException("Graphics refresh is not supported by this game version.");
-  if(device==0||vtable==module+0x2DB8098||Ptr(pid,module+0x43D0E08)!=device||Ptr(pid,device)!=vtable||U32(pid,state)!=1)throw new InvalidOperationException("Resolution helper is not attached.");
-  ulong ui=Ptr(pid,module+0x4032368);if(ui==0||Ptr(pid,ui)!=module+0x2D522A8)return "Waiting for campaign interface";
-  ulong resource=Ptr(pid,device+0x80);if(resource==0||Ptr(pid,resource)!=module+0x2DB9DA8)return "Waiting for display";
+  ulong setter=module+SC2Addresses.Rva(0x22a290);var live=Read(pid,setter,13);
+  if(live[0]!=0x88||live[1]!=0x0d||live[6]!=0x88||live[7]!=0x15||live[12]!=0xc3||
+     (long)setter+6+BitConverter.ToInt32(live,2)!=(long)(module+RequestRva)||
+     (long)setter+12+BitConverter.ToInt32(live,8)!=(long)(module+RequestRva+1))throw new InvalidOperationException("Graphics refresh is unavailable.");
+  if(device==0||vtable==module+SC2Addresses.Rva(0x2DB8098)||Ptr(pid,module+SC2Addresses.Rva(0x43D0E08))!=device||Ptr(pid,device)!=vtable||U32(pid,state)!=1)throw new InvalidOperationException("Resolution helper is not attached.");
+  ulong ui=Ptr(pid,module+SC2Addresses.Rva(0x4032368));if(ui==0||Ptr(pid,ui)!=module+SC2Addresses.Rva(0x2D522A8))return "Waiting for campaign interface";
+  ulong resource=Ptr(pid,device+0x80);if(resource==0||Ptr(pid,resource)!=module+SC2Addresses.Rva(0x2DB9DA8))return "Waiting for display";
   if(Read(pid,resource+0x80,1)[0]!=0)return "Waiting for fullscreen mode";
   uint packed=U32(pid,resource+0x60);if((packed&0x3fff)<1280||((packed>>14)&0x3fff)<720)return "Waiting for display";
   if(Pending(pid,module))return "Waiting for graphics update";
   SC2DisplayGate.Require(pid,module);
-  if(!IsForeground(pid)||Ptr(pid,module+0x4032368)!=ui||Ptr(pid,device)!=vtable)return "Waiting for stable campaign";
+  if(!IsForeground(pid)||Ptr(pid,module+SC2Addresses.Rva(0x4032368))!=ui||Ptr(pid,device)!=vtable)return "Waiting for stable campaign";
   SC2HudHook.CheckedWrite(pid,module+RequestRva,new byte[]{0,0},new byte[]{1,1});
   return "Requested";
  }

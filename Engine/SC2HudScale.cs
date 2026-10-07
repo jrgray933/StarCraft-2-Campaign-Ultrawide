@@ -56,7 +56,7 @@ public partial class SC2HudScale {
   if(expected.Length!=replacement.Length)throw new Exception("Write length mismatch");var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("OpenProcess");try{var old=Read(h,address,expected.Length);for(int i=0;i<old.Length;i++)if(old[i]!=expected[i])throw new Exception("Game data changed; no write");Write(h,address,replacement);}finally{CloseHandle(h);}
  }
  public static Prepared Prepare(int pid,ulong owner,ulong table,ulong setter,Command[] commands,ulong activeTable=0,WidthTarget[] cargoWidths=null){
-  ulong module=table-0x2D51C58;SC2CampaignGate.Require(pid,module);
+  ulong module=table-SC2Addresses.Rva(0x2D51C58);SC2CampaignGate.Require(pid,module);
   if(commands.Length<1||commands.Length>16384)throw new Exception("Invalid command count");
   var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("OpenProcess");IntPtr data=IntPtr.Zero,code=IntPtr.Zero;bool ready=false;
   try{
@@ -67,35 +67,35 @@ public partial class SC2HudScale {
    ulong state=(ulong)data.ToInt64(),entry=(ulong)code.ToInt64();var bytes=Build(state,original,module);var buffer=new byte[0xA3000];
    // A per-instance queue update keeps the game-computed row width proportional.
    foreach(var x in commands)if(x.Side==6){
-    if(Q(Read(h,x.Frame,8),0)!=module+0x2d99510)throw new Exception("Queue panel changed before resizing.");
-    if(Q(Read(h,module+0x2d99510+0x150,8),0)!=module+0xdc31c0)throw new Exception("Unexpected queue update.");
-    var queueTable=Read(h,module+0x2d99510-16,0x400);
-    var queueCode=BuildQueueUpdate(x.Frame,Q(Read(h,x.Frame+0x138,8),0),entry+0xC00,module+0xdc31c0,module+0xadde10,setter,x.Offset,module);
+    if(Q(Read(h,x.Frame,8),0)!=module+SC2Addresses.Rva(0x2d99510))throw new Exception("Queue panel changed before resizing.");
+    if(Q(Read(h,module+SC2Addresses.Rva(0x2d99510)+0x150,8),0)!=module+SC2Addresses.Rva(0xdc31c0))throw new Exception("Unexpected queue update.");
+    var queueTable=Read(h,module+SC2Addresses.Rva(0x2d99510)-16,0x400);
+    var queueCode=BuildQueueUpdate(x.Frame,Q(Read(h,x.Frame+0x138,8),0),entry+0xC00,module+SC2Addresses.Rva(0xdc31c0),module+SC2Addresses.Rva(0xadde10),setter,x.Offset,module);
     if(queueCode.Length>0x400)throw new Exception("Queue callback exceeds capacity.");
     Array.Copy(BitConverter.GetBytes(entry+0xC00),0,queueTable,0x160,8);Array.Copy(queueTable,0,buffer,0xA1800,queueTable.Length);
     x.Parent=state+0xA1810;Write(h,entry+0xC00,queueCode);
    }
    foreach(var x in commands)if(x.Side==7){
-    if(Q(Read(h,x.Frame,8),0)!=module+0x2d97840||Q(Read(h,module+0x2d97840+0x150,8),0)!=module+0xdba490||cargoWidths==null||cargoWidths.Length<1||cargoWidths.Length>8)throw new Exception("Cargo panel changed before resizing.");
+    if(Q(Read(h,x.Frame,8),0)!=module+SC2Addresses.Rva(0x2d97840)||Q(Read(h,module+SC2Addresses.Rva(0x2d97840)+0x150,8),0)!=module+SC2Addresses.Rva(0xdba490)||cargoWidths==null||cargoWidths.Length<1||cargoWidths.Length>8)throw new Exception("Cargo panel changed before resizing.");
     for(int i=0;i<cargoWidths.Length;i++){var w=cargoWidths[i];Array.Copy(BitConverter.GetBytes(w.Frame),0,buffer,0xA1400+16*i,8);Array.Copy(BitConverter.GetBytes(w.Width),0,buffer,0xA1408+16*i,4);}
-    var cargoTable=Read(h,module+0x2d97840-16,0x400);var cargoCode=BuildCargoUpdate(x.Frame,state+0xA1400,cargoWidths.Length,module+0xdba490,module+0x16a7680,module+0x16bfb40,x.Offset,module);
+    var cargoTable=Read(h,module+SC2Addresses.Rva(0x2d97840)-16,0x400);var cargoCode=BuildCargoUpdate(x.Frame,state+0xA1400,cargoWidths.Length,module+SC2Addresses.Rva(0xdba490),module+SC2Addresses.Rva(0x16a7680),module+SC2Addresses.Rva(0x16bfb40),x.Offset,module);
     if(cargoCode.Length>4096)throw new Exception("Cargo callback exceeds capacity.");Array.Copy(BitConverter.GetBytes(entry+0x1000),0,cargoTable,0x160,8);Array.Copy(cargoTable,0,buffer,0xA1C00,cargoTable.Length);x.Parent=state+0xA1C10;Write(h,entry+0x1000,cargoCode);
    }
-   if(Q(Read(h,module+0x2dccec8+0x138,8),0)!=module+0x16d3ed0||Q(Read(h,module+0x2dccec8+0x148,8),0)!=module+0x16d6250)throw new Exception("Unexpected text layout callbacks.");
+   if(Q(Read(h,module+SC2Addresses.Rva(0x2dccec8)+0x138,8),0)!=module+SC2Addresses.Rva(0x16d3ed0)||Q(Read(h,module+SC2Addresses.Rva(0x2dccec8)+0x148,8),0)!=module+SC2Addresses.Rva(0x16d6250))throw new Exception("Unexpected text layout callbacks.");
    // Share per-HUD label callbacks, including labels that are not visible yet.
-   var textTable=Read(h,module+0x2dccec8-16,0x400);
+   var textTable=Read(h,module+SC2Addresses.Rva(0x2dccec8)-16,0x400);
    Array.Copy(BitConverter.GetBytes(entry+0x2000),0,textTable,0x148,8);
    Array.Copy(BitConverter.GetBytes(entry+0x2400),0,textTable,0x158,8);
    Array.Copy(textTable,0,buffer,0xA2000,textTable.Length);
    float textScale=1;
    foreach(var x in commands)if(x.Side==8){textScale=x.Offset;x.Parent=state+0xA2010;}
-   var measureCode=BuildTextMeasure(module+0x16d3ed0,textScale,module);
-   var layoutCode=BuildTextLayout(module+0x16a7680,module+0x16a6490,module+0x16d8a20,module+0x16d8900,module+0x16d8b40,module+0x16d6250,textScale,module);
+   var measureCode=BuildTextMeasure(module+SC2Addresses.Rva(0x16d3ed0),textScale,module);
+   var layoutCode=BuildTextLayout(module+SC2Addresses.Rva(0x16a7680),module+SC2Addresses.Rva(0x16a6490),module+SC2Addresses.Rva(0x16d8a20),module+SC2Addresses.Rva(0x16d8900),module+SC2Addresses.Rva(0x16d8b40),module+SC2Addresses.Rva(0x16d6250),textScale,module);
    if(measureCode.Length>0x400||layoutCode.Length>0xC00)throw new Exception("Text callbacks exceed capacity.");
    Write(h,entry+0x2000,measureCode);Write(h,entry+0x2400,layoutCode);
    Array.Copy(BitConverter.GetBytes(owner),0,buffer,24,8);Array.Copy(BitConverter.GetBytes(original),0,buffer,32,8);Array.Copy(BitConverter.GetBytes(entry+0x800),0,buffer,40,8);Array.Copy(BitConverter.GetBytes(commands.Length),0,buffer,48,4);
    for(int i=0;i<commands.Length;i++){var x=commands[i];int p=64+i*40;Array.Copy(BitConverter.GetBytes(x.Frame),0,buffer,p,8);Array.Copy(BitConverter.GetBytes(x.Parent),0,buffer,p+8,8);Array.Copy(BitConverter.GetBytes(x.Side),0,buffer,p+16,4);Array.Copy(BitConverter.GetBytes(x.Position),0,buffer,p+20,4);Array.Copy(BitConverter.GetBytes(x.Offset),0,buffer,p+24,4);Array.Copy(BitConverter.GetBytes(x.OldPosition),0,buffer,p+28,4);Array.Copy(BitConverter.GetBytes(x.OldOffset),0,buffer,p+32,4);}
-   Array.Copy(BitConverter.GetBytes(entry),0,vt,0x158,8);Array.Copy(vt,0,buffer,0xA1000,vt.Length);Write(h,state,buffer);Write(h,entry,bytes);Write(h,entry+0x800,BuildTextDispatcher(setter,module+0x16a7680,module+0x16a6490,module+0x16d8a20,module+0x16d8900,module+0x16d8b40,module+0x16d6250));uint old;
+   Array.Copy(BitConverter.GetBytes(entry),0,vt,0x158,8);Array.Copy(vt,0,buffer,0xA1000,vt.Length);Write(h,state,buffer);Write(h,entry,bytes);Write(h,entry+0x800,BuildTextDispatcher(setter,module+SC2Addresses.Rva(0x16a7680),module+SC2Addresses.Rva(0x16a6490),module+SC2Addresses.Rva(0x16d8a20),module+SC2Addresses.Rva(0x16d8900),module+SC2Addresses.Rva(0x16d8b40),module+SC2Addresses.Rva(0x16d6250)));uint old;
    if(!VirtualProtectEx(h,code,(UIntPtr)12288,0x20,out old)||!FlushInstructionCache(h,code,(UIntPtr)12288))throw Error("Protect code");
    var check=Read(h,entry,bytes.Length);for(int i=0;i<bytes.Length;i++)if(check[i]!=bytes[i])throw new Exception("Code readback failed");
    ready=true;return new Prepared{Code=entry,State=state,VTable=state+0xA1010,Length=bytes.Length};
@@ -105,18 +105,18 @@ public partial class SC2HudScale {
 
  static void Call(List<byte> c,ulong address){B(c,"48 B8");I(c,address);B(c,"FF D0");}
  public static byte[] BuildTextDispatcher(ulong anchor,ulong width,ulong height,ulong baseWidth,ulong baseHeight,ulong scale,ulong layout,ulong invalidate=0){
-  if(invalidate==0)invalidate=anchor-0x16bcfc0+0x16a8480;
+  if(invalidate==0)invalidate=anchor-SC2Addresses.Rva(0x16bcfc0)+SC2Addresses.Rva(0x16a8480);
   var c=new List<byte>();
   B(c,"83 FA 05");int notCargo=J(c,"0F 85");
   B(c,"44 89 89 F0 01 00 00 83 89 E8 01 00 00 01 B0 01 C3");F(c,notCargo,c.Count);
-  B(c,"83 FA 07");int notCargoHook=J(c,"0F 85");B(c,"45 85 C9");int restoreCargo=J(c,"0F 84");B(c,"4C 89 01 B0 01 C3");F(c,restoreCargo,c.Count);B(c,"48 B8");I(c,anchor-0x16bcfc0+0x2d97840);B(c,"48 89 01 B0 01 C3");F(c,notCargoHook,c.Count);
+  B(c,"83 FA 07");int notCargoHook=J(c,"0F 85");B(c,"45 85 C9");int restoreCargo=J(c,"0F 84");B(c,"4C 89 01 B0 01 C3");F(c,restoreCargo,c.Count);B(c,"48 B8");I(c,anchor-SC2Addresses.Rva(0x16bcfc0)+SC2Addresses.Rva(0x2d97840));B(c,"48 89 01 B0 01 C3");F(c,notCargoHook,c.Count);
   B(c,"83 FA 06");int notQueue=J(c,"0F 85");
   B(c,"45 85 C9");int restoreQueue=J(c,"0F 84");B(c,"4C 89 01 B0 01 C3");
-  F(c,restoreQueue,c.Count);B(c,"48 B8");I(c,anchor-0x16bcfc0+0x2d99510);B(c,"48 89 01 B0 01 C3");F(c,notQueue,c.Count);
+  F(c,restoreQueue,c.Count);B(c,"48 B8");I(c,anchor-SC2Addresses.Rva(0x16bcfc0)+SC2Addresses.Rva(0x2d99510));B(c,"48 89 01 B0 01 C3");F(c,notQueue,c.Count);
   B(c,"83 FA 08");int notTextHook=J(c,"0F 85");
   B(c,"53 48 83 EC 20 48 89 CB 45 85 C9");int restoreText=J(c,"0F 84");
   B(c,"4C 89 01");int textDone=J(c,"E9");
-  F(c,restoreText,c.Count);B(c,"48 B8");I(c,anchor-0x16bcfc0+0x2dccec8);B(c,"48 89 01 31 D2");Call(c,scale);
+  F(c,restoreText,c.Count);B(c,"48 B8");I(c,anchor-SC2Addresses.Rva(0x16bcfc0)+SC2Addresses.Rva(0x2dccec8));B(c,"48 89 01 31 D2");Call(c,scale);
   B(c,"48 8B 83 D8 01 00 00 48 85 C0");int noText=J(c,"0F 84");
   B(c,"48 C7 40 38 00 00 00 00 C7 40 48 00 00 80 3F C7 40 4C 00 00 80 3F 83 60 20 FA");
   F(c,noText,c.Count);F(c,textDone,c.Count);
@@ -249,11 +249,33 @@ public partial class SC2HudScale {
  static void Walk(IntPtr h,ulong module,ulong address,int root,int depth,bool excluded,List<Frame> frames,HashSet<ulong> seen,Dictionary<ulong,ulong> aliases=null){
   if(depth>40||frames.Count>=20000||!seen.Add(address))throw new Exception("Campaign HUD changed while reading its layout.");
   var b=Read(h,address,0x130);ulong vt=Q(b,0),parent=Q(b,0x50);if(aliases!=null&&aliases.ContainsKey(vt))vt=aliases[vt];
-  if(!(vt>module+0x2c00000&&vt<module+0x3500000)&&!(root==0xc68&&depth==0))throw new Exception("Unexpected campaign HUD frame.");
-  if(root==0xc68&&(vt==module+0x2d6a748||vt==module+0x2d78b08))excluded=true;
+  if(!SC2Addresses.IsReadOnlyAddress(module,vt)&&!(root==0xc68&&depth==0))throw new Exception("Unexpected campaign HUD frame.");
+  if(root==0xc68&&(vt==module+SC2Addresses.Rva(0x2d6a748)||vt==module+SC2Addresses.Rva(0x2d78b08)))excluded=true;
+  if(root==0xc68 && depth==1 && IsNativeCampaignPanel(h,module,new Frame{Address=address,Table=vt,Parent=parent},parent))excluded=true;
   frames.Add(new Frame{Address=address,Table=vt,Parent=parent,Data=b,Root=root,Depth=depth,Excluded=excluded});
   ulong node=Q(b,0x40);int count=0;
   while(node!=0&&(node&1)==0){ulong child=node-0x18;if(Q(Read(h,child+0x50,8),0)!=address||++count>1000)throw new Exception("Campaign HUD hierarchy changed.");Walk(h,module,child,root,depth+1,excluded,frames,seen,aliases);node=Q(Read(h,node+8,8),0);}
+ }
+ static string CampaignPanelName(IntPtr h,Frame f){
+  ulong descriptor=Q(Read(h,f.Address+8,8),0);if(descriptor==0)return "";
+  ulong token=Q(Read(h,descriptor+0x58,8),0);if(token==0)return "";
+  var data=Read(h,token+0x18,24);int length=(int)(BitConverter.ToUInt32(data,0)>>2);
+  if(length<1||length>128)return "";
+  ulong address=(BitConverter.ToUInt32(data,4)&2)!=0?Q(data,8):token+0x20;
+  return System.Text.Encoding.ASCII.GetString(Read(h,address,length));
+ }
+ static bool IsLeftCampaignPanel(IntPtr h,ulong module,Frame f,ulong owner){
+  return f.Parent==owner && (f.Table==module+SC2Addresses.Rva(0x2d9ebe0) || (f.Table==module+SC2Addresses.Rva(0x2d51c58) && CampaignPanelName(h,f)=="HeroUnitFrame"));
+ }
+ static bool IsNativeCampaignPanel(IntPtr h,ulong module,Frame f,ulong owner){
+  if(f.Parent!=owner)return false;
+  if(f.Table==module+SC2Addresses.Rva(0x2d9ebe0)||f.Table==module+SC2Addresses.Rva(0x2d6f9d0))return true;
+  if(f.Table!=module+SC2Addresses.Rva(0x2d51c58))return false;
+  switch(CampaignPanelName(h,f)){
+   case "HeroUnitFrame":case "SecondaryHeroUnitFrame":case "BossUnitFrame":
+   case "ProgressUnitFrame":case "SmallProgressUnitFrame":case "TugOfWarFrame":return true;
+   default:return false;
+  }
  }
  public static void ValidateScale(int width,int height,int percent){
   if(percent<50||percent>100||percent%5!=0)throw new Exception("Choose a HUD size from 50% to 100%, in steps of 5%.");
@@ -263,41 +285,56 @@ public partial class SC2HudScale {
   ValidateScale(width,height,percent);SC2CampaignGate.Require(pid,module);
   var h=OpenProcess(0x410,false,pid);if(h==IntPtr.Zero)throw Error("Read campaign HUD");
   try{
-   ulong ui=Q(Read(h,module+0x4032368,8),0),owner=Q(Read(h,ui+0xc68,8),0),console=Q(Read(h,ui+0xc60,8),0);
-   if(Q(Read(h,ui,8),0)!=module+0x2d522a8||Q(Read(h,console,8),0)!=module+0x2d62e98)throw new Exception("Waiting for the supported campaign HUD.");
+   ulong ui=Q(Read(h,module+SC2Addresses.Rva(0x4032368),8),0),owner=Q(Read(h,ui+0xc68,8),0),console=Q(Read(h,ui+0xc60,8),0);
+   if(Q(Read(h,ui,8),0)!=module+SC2Addresses.Rva(0x2d522a8)||Q(Read(h,console,8),0)!=module+SC2Addresses.Rva(0x2d62e98))throw new Exception("Waiting for the supported campaign HUD.");
    var frames=new List<Frame>();var seen=new HashSet<ulong>();foreach(int root in new[]{0xc60,0xc68,0xc78})Walk(h,module,Q(Read(h,ui+(ulong)root,8),0),root,0,false,frames,seen);
    ulong menu=Q(Read(h,ui+0xc80,8),0),full=Q(Read(h,ui+0xc88,8),0);
-   foreach(ulong a in new[]{menu,full}){var d=Read(h,a,0x130);if(Q(d,0)!=module+0x2d51c58)throw new Exception("Unexpected campaign menu anchor.");frames.Add(new Frame{Address=a,Table=Q(d,0),Parent=Q(d,0x50),Data=d,Root=0xc80});}
+   foreach(ulong a in new[]{menu,full}){var d=Read(h,a,0x130);if(Q(d,0)!=module+SC2Addresses.Rva(0x2d51c58))throw new Exception("Unexpected campaign menu anchor.");frames.Add(new Frame{Address=a,Table=Q(d,0),Parent=Q(d,0x50),Data=d,Root=0xc80});}
    float scale=percent/100f,inset=600f*width/height-scale*1200f*8/9;float horizontal=(float)width/height/(4f/3);
-   var cargoWidths=new List<WidthTarget>();ulong cargo=0;foreach(var f in frames)if(f.Table==module+0x2d97840&&!f.Excluded)cargo=f.Address;
+   var cargoWidths=new List<WidthTarget>();ulong cargo=0;foreach(var f in frames)if(f.Table==module+SC2Addresses.Rva(0x2d97840)&&!f.Excluded)cargo=f.Address;
    var textCommands=new List<Command>();var commands=new List<Command>();var checks=new List<Identity>();
    foreach(var f in frames){
-    if(f.Excluded||f.Address==owner)continue;
+    bool leftPanel=IsLeftCampaignPanel(h,module,f,owner),nativePanel=IsNativeCampaignPanel(h,module,f,owner);
+
+    if((f.Excluded&&!nativePanel)||f.Address==owner)continue;
+
     byte[] d=f.Data;
-    if(f.Address==cargo||(f.Parent==cargo&&f.Table==module+0x2dccec8)){
+    if(f.Address==cargo||(f.Parent==cargo&&f.Table==module+SC2Addresses.Rva(0x2dccec8))){
      float w=0;if(Q(d,0x78)==f.Address&&BitConverter.ToInt16(d,0x80)==2048)w=-S(d,0x84);
      else if(Q(d,0x78)==Q(d,0x98)&&BitConverter.ToInt16(d,0x80)==BitConverter.ToInt16(d,0xa0))w=S(d,0xa4)-S(d,0x84);
      if(w<=0||w>2000)throw new Exception("Unexpected cargo panel width.");cargoWidths.Add(new WidthTarget{Frame=f.Address,Width=w});
     }
-    if(f.Table==module+0x2d97840){float cell=S(Read(h,f.Address+0x1f0,4),0);if(cell!=64f)throw new Exception("Unexpected cargo cell size.");textCommands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=5,Position=cell*scale,OldPosition=cell});}
-    if(f.Table==module+0x2d97840)commands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=7,Position=1,OldPosition=0,Offset=scale});
-    if(f.Table==module+0x2d99510)commands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=6,Position=1,OldPosition=0,Offset=scale});
+    if(percent!=100 && f.Table==module+SC2Addresses.Rva(0x2d97840)){float cell=S(Read(h,f.Address+0x1f0,4),0);if(cell!=64f)throw new Exception("Unexpected cargo cell size.");textCommands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=5,Position=cell*scale,OldPosition=cell});}
+    if(percent!=100 && f.Table==module+SC2Addresses.Rva(0x2d97840))commands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=7,Position=1,OldPosition=0,Offset=scale});
+    if(percent!=100 && f.Table==module+SC2Addresses.Rva(0x2d99510))commands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=6,Position=1,OldPosition=0,Offset=scale});
     checks.Add(new Identity{Frame=f.Address,VTable=f.Table,Parent=f.Parent});
-    if(f.Table==module+0x2dccec8&&(BitConverter.ToUInt32(Read(h,f.Address+0x1d0,4),0)&16)==0){
+    if(percent!=100 && f.Table==module+SC2Addresses.Rva(0x2dccec8)&&(BitConverter.ToUInt32(Read(h,f.Address+0x1d0,4),0)&16)==0){
      textCommands.Add(new Command{Frame=f.Address,Parent=f.Address,Side=8,Position=1,OldPosition=0,Offset=scale});
     }
-    if(f.Table==module+0x2d97498)continue;
+    if(f.Table==module+SC2Addresses.Rva(0x2d97498))continue;
     for(int side=0;side<4;side++){
      int a=0x68+16*side;ulong relative=Q(d,a);if(relative==0)continue;
      if((BitConverter.ToUInt16(d,a+10)&4)!=0)throw new Exception("This campaign uses an unsupported HUD offset.");
-     float position=BitConverter.ToInt16(d,a+8)/2048f,offset=S(d,a+12),np=position,no=offset*scale;
-     if(relative==f.Address&&Math.Abs(offset)<.0001f&&f.Table!=module+0x2dccec8){float size=(side%2==1)?(S(d,0xb4)-S(d,0xac))*horizontal:S(d,0xb0)-S(d,0xa8);no=size*scale*(side<2?-1:1);}
+     float position=BitConverter.ToInt16(d,a+8)/2048f,offset=S(d,a+12),np=position,no=nativePanel?offset:offset*scale;
+     if(relative==f.Address&&Math.Abs(offset)<.0001f&&f.Table!=module+SC2Addresses.Rva(0x2dccec8)){float size=(side%2==1)?(S(d,0xb4)-S(d,0xac))*horizontal:S(d,0xb0)-S(d,0xa8);no=size*(nativePanel?1:scale)*(side<2?-1:1);}
      if(f.Address==console){no=side==0?1200*(1-scale):side==1?inset:side==3?-inset:0;}
-     else if(relative==owner)np=side%2==1?(1-scale)/2+scale*position:1-scale+scale*position;
+     else if(relative==owner&&!nativePanel)np=side%2==1?(1-scale)/2+scale*position:1-scale+scale*position;
      if(f.Root==0xc80&&side==3)no=-inset;
+     if(relative==owner && side%2==1){
+      if(leftPanel && side==1){np=0;no=offset;}
+      else if(!nativePanel)no+=(float)Math.Max(0,600.0*width/height-1200.0*8/9)*(1-2*np);
+     }
      if(Math.Abs(np-position)<.0001&&Math.Abs(no-offset)<.0001)continue;
      commands.Add(new Command{Frame=f.Address,Parent=relative,Side=side,Position=np,Offset=no,OldPosition=position,OldOffset=offset});
     }
+   }
+   // Keep the clipping container full width; child anchors retain their HUD positions.
+   var ownerData=Read(h,owner,0x130);ulong ownerParent=Q(ownerData,0x50);
+   checks.Add(new Identity{Frame=owner,VTable=Q(ownerData,0),Parent=ownerParent});
+   foreach(int side in new[]{1,3}){
+    int a=0x68+side*16;
+    if(Q(ownerData,a)!=ownerParent || (BitConverter.ToUInt16(ownerData,a+10)&4)!=0)throw new Exception("Unexpected campaign container anchor.");
+    commands.Add(new Command{Frame=owner,Parent=ownerParent,Side=side,Position=side==1?0f:1f,Offset=0,OldPosition=BitConverter.ToInt16(ownerData,a+8)/2048f,OldOffset=S(ownerData,a+12)});
    }
    textCommands.AddRange(commands);if(textCommands.Count>16384)throw new Exception("This campaign HUD is too large for scaling.");
    foreach(var f in frames){if(f.Excluded||f.Address==owner)continue;var current=Read(h,f.Address,0x130);if(Q(current,0)!=f.Table||Q(current,0x50)!=f.Parent)throw new Exception("Campaign HUD changed; waiting for it to settle.");for(int j=0x68;j<0xa8;j++)if(current[j]!=f.Data[j])throw new Exception("Campaign HUD changed; waiting for it to settle.");}
@@ -309,9 +346,11 @@ public partial class SC2HudScale {
   var h=OpenProcess(0x438,false,pid);if(h==IntPtr.Zero)throw Error("Restore campaign HUD");
   try{
    if(BitConverter.ToUInt32(Read(h,state+4,4),0)!=0)throw new Exception("HUD update is busy.");
-   var aliases=new Dictionary<ulong,ulong>();for(int i=0;i<count;i++){var cmd=Read(h,state+64+(ulong)i*40,40);if(BitConverter.ToInt32(cmd,16)==6)aliases[Q(cmd,8)]=module+0x2d99510;else if(BitConverter.ToInt32(cmd,16)==7)aliases[Q(cmd,8)]=module+0x2d97840;else if(BitConverter.ToInt32(cmd,16)==8)aliases[Q(cmd,8)]=module+0x2dccec8;}
-   ulong ui=Q(Read(h,module+0x4032368,8),0);var live=new List<Frame>();var seen=new HashSet<ulong>();foreach(int root in new[]{0xc60,0xc68,0xc78})Walk(h,module,Q(Read(h,ui+(ulong)root,8),0),root,0,false,live,seen,aliases);
+   var aliases=new Dictionary<ulong,ulong>();for(int i=0;i<count;i++){var cmd=Read(h,state+64+(ulong)i*40,40);if(BitConverter.ToInt32(cmd,16)==6)aliases[Q(cmd,8)]=module+SC2Addresses.Rva(0x2d99510);else if(BitConverter.ToInt32(cmd,16)==7)aliases[Q(cmd,8)]=module+SC2Addresses.Rva(0x2d97840);else if(BitConverter.ToInt32(cmd,16)==8)aliases[Q(cmd,8)]=module+SC2Addresses.Rva(0x2dccec8);}
+   ulong ui=Q(Read(h,module+SC2Addresses.Rva(0x4032368),8),0);var live=new List<Frame>();var seen=new HashSet<ulong>();foreach(int root in new[]{0xc60,0xc68,0xc78})Walk(h,module,Q(Read(h,ui+(ulong)root,8),0),root,0,false,live,seen,aliases);
    seen.Add(Q(Read(h,ui+0xc80,8),0));seen.Add(Q(Read(h,ui+0xc88,8),0));var valid=new HashSet<ulong>();
+   ulong currentOwner=Q(Read(h,ui+0xc68,8),0);
+   foreach(var e in expected)if(e.Frame==currentOwner && Q(Read(h,currentOwner,8),0)==state+0xA1010)aliases[state+0xA1010]=e.VTable;
    foreach(var e in expected){if(!seen.Contains(e.Frame))continue;var d=Read(h,e.Frame,0x58);ulong vt=Q(d,0);if(aliases.ContainsKey(vt))vt=aliases[vt];if(vt==e.VTable&&Q(d,0x50)==e.Parent)valid.Add(e.Frame);}
    for(int i=0;i<count;i++){ulong a=state+64+(ulong)i*40;ulong frame=Q(Read(h,a,8),0);if(frame!=0&&!valid.Contains(frame))Write(h,a,new byte[8]);}
   }finally{CloseHandle(h);}
@@ -337,7 +376,7 @@ public partial class SC2HudScale {
    dispatch(frame,5,frame,0x42000000,0,0);if(Marshal.ReadInt32(frame,0x1f0)!=0x42000000||Marshal.ReadInt32(frame,0x1e8)!=1)throw new Exception("Cargo size and rebuild");
    dispatch(frame,5,frame,0x42800000,0,0);if(Marshal.ReadInt32(frame,0x1f0)!=0x42800000)throw new Exception("Cargo restore");
    dispatch(frame,6,panel,0x3f800000,0,0);if(Marshal.ReadInt64(frame)!=panel.ToInt64())throw new Exception("Queue install");
-   dispatch(frame,6,panel,0,0,0);long vt=Marshal.GetFunctionPointerForDelegate(setter).ToInt64()-0x16bcfc0+0x2d99510;if(Marshal.ReadInt64(frame)!=vt)throw new Exception("Queue restore");
+   dispatch(frame,6,panel,0,0,0);long vt=Marshal.GetFunctionPointerForDelegate(setter).ToInt64()-(long)SC2Addresses.Rva(0x16bcfc0)+(long)SC2Addresses.Rva(0x2d99510);if(Marshal.ReadInt64(frame)!=vt)throw new Exception("Queue restore");
    GC.KeepAlive(original);GC.KeepAlive(get);GC.KeepAlive(setter);return "PASS: dynamic queue sizing at all 11 scales without compounding, empty selection and identity guards, argument/result forwarding, cargo resize/restore, queue install/restore.";
   }finally{if(code!=IntPtr.Zero)VirtualFreeEx(h,code,UIntPtr.Zero,0x8000);Marshal.FreeHGlobal(frame);Marshal.FreeHGlobal(panel);}
  }

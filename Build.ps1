@@ -1,4 +1,4 @@
-param([string]$OutputDirectory=(Join-Path $PSScriptRoot 'build'))
+﻿param([string]$OutputDirectory=(Join-Path $PSScriptRoot 'build'))
 $ErrorActionPreference='Stop'
 if(-not [Environment]::Is64BitOperatingSystem){throw 'Build on 64-bit Windows.'}
 $compiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -9,6 +9,7 @@ $engineFiles=@(
     'Campaign-Ultrawide.ps1',
     'CampaignDisplayRefresh.cs',
     'CampaignGate.cs',
+    'SC2Addresses.cs',
     'HubCamera.cs',
     'MissionZoom.cs',
     'CampaignModeHook.cs',

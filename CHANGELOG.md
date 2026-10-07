@@ -1,4 +1,13 @@
-# Changelog
+﻿# Changelog
+
+## 1.9.0
+
+- Restore support for the latest StarCraft II update.
+- Automatically locate game addresses after compatible updates.
+- Fix extra zoom and zoom-step settings in missions such as Enemy Within.
+- Keep campaign objectives, hero panels, and encounter displays at their normal size and position.
+
+Download **Starcraft-2-Campaign-Ultrawide-1.9.0-windows-x64.zip**, extract it, and run **Campaign Ultrawide.exe**.
 
 ## 1.8.0
 
