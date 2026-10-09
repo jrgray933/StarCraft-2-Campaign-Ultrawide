@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 1.9.1
+
+- Fix Fit and Expanded hub views in the Zerg campaign.
+
+Close StarCraft II and the helper before updating.
+
+Download **Starcraft-2-Campaign-Ultrawide-1.9.1-windows-x64.zip**, extract it, and run **Campaign Ultrawide.exe**.
+
 ## 1.9.0
 
 - Restore support for the latest StarCraft II update.

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -15,7 +15,8 @@ public static class SC2HubGate {
  public static byte[] Read(int pid,ulong a,int n){if(a<0x10000)throw new InvalidOperationException("Scene is unavailable.");var b=SC2Memory.Read(pid,a,n);if(b==null||b.Length!=n)throw new InvalidOperationException("Scene is unavailable.");return b;}
  public static ulong Ptr(int pid,ulong a){return BitConverter.ToUInt64(Read(pid,a,8),0);}
  public static uint U32(int pid,ulong a){return BitConverter.ToUInt32(Read(pid,a,4),0);}
- public static bool HubMap(string map){return map==""||String.Equals(SC2CampaignGate.CanonicalPath(map),"Maps/Campaign/TStory01.SC2Map",StringComparison.OrdinalIgnoreCase);}
+ static readonly string[] HubPaths={"campaign/tstory01.sc2map","campaign/swarm/zstorychar.sc2map","campaign/swarm/zstoryexpedition.sc2map","campaign/swarm/zstoryzerus.sc2map"};
+ public static bool HubMap(string map){if(map=="")return true;string canonical=SC2CampaignGate.CanonicalPath(map);foreach(string path in HubPaths)if(String.Equals(canonical,"maps/"+path,StringComparison.OrdinalIgnoreCase))return true;return false;}
  public static bool Matches(bool online,string map,string asset){return !online&&HubMap(map)&&asset!=null&&asset.Replace('\\','/').StartsWith("assets/storymodesets/",StringComparison.OrdinalIgnoreCase);}
  static Scene Observe(int pid,ulong module){
   var s=new Scene();s.Session=Ptr(pid,module+SC2CampaignGate.SessionRva);s.Info=Ptr(pid,s.Session+0x60);
@@ -41,16 +42,19 @@ public static class SC2HubGate {
  public static void Fix(List<byte> c,int p,int target){var b=BitConverter.GetBytes(target-p-4);for(int i=0;i<4;i++)c[p+i]=b[i];}
  static void Nonzero(List<byte> c,List<int> denied){B(c,"48 85 C0");denied.Add(J(c,"0F 84"));}
  static void Load(List<byte> c,List<int> denied,int offset){B(c,"48 8B 80");c.AddRange(BitConverter.GetBytes(offset));Nonzero(c,denied);}
- // TStory01 is the Hyperion hub after returning from a completed mission.
+ static void EmitPath(List<byte> c,List<int> mismatch,string path){
+  for(int i=0;i<path.Length;i++){
+   B(c,"41 0F B6 43");c.Add((byte)i);
+   if(path[i]=='/'){B(c,"3C 5C");int slash=J(c,"0F 84");B(c,"3C 2F");mismatch.Add(J(c,"0F 85"));Fix(c,slash,c.Count);}
+   else{B(c,"0C 20 3C");c.Add((byte)path[i]);mismatch.Add(J(c,"0F 85"));}
+  }
+ }
  static void EmitHubMap(List<byte> c,List<int> denied,ulong map){
   B(c,"49 BB");c.AddRange(BitConverter.GetBytes(map));B(c,"41 80 3B 00");var allowed=new List<int>{J(c,"0F 84")};
-  foreach(string path in new[]{"campaign/tstory01.sc2map","maps/campaign/tstory01.sc2map"}){
-   var next=new List<int>();
-   for(int i=0;i<path.Length;i++){
-    B(c,"41 0F B6 43");c.Add((byte)i);
-    if(path[i]=='/'){B(c,"3C 5C");int slash=J(c,"0F 84");B(c,"3C 2F");next.Add(J(c,"0F 85"));Fix(c,slash,c.Count);}
-    else{B(c,"0C 20 3C");c.Add((byte)path[i]);next.Add(J(c,"0F 85"));}
-   }
+  // Normalize the optional maps/ prefix once so both path forms share the guard.
+  var relative=new List<int>();EmitPath(c,relative,"maps/");B(c,"49 83 C3 05");SC2CampaignGate.Resolve(c,relative,c.Count);
+  foreach(string path in HubPaths){
+   var next=new List<int>();EmitPath(c,next,path);
    B(c,"41 80 7B");c.Add((byte)path.Length);c.Add(0);allowed.Add(J(c,"0F 84"));
    SC2CampaignGate.Resolve(c,next,c.Count);
   }

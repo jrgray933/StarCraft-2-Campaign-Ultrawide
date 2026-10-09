@@ -13,7 +13,7 @@ public static class HubCameraTests {
  static void Ptr(ulong a,ulong v){Marshal.WriteInt64((IntPtr)(long)a,(long)v);}static void I(ulong a,int v){Marshal.WriteInt32((IntPtr)(long)a,v);}static void S(ulong a,string v){var b=new byte[260];Encoding.ASCII.GetBytes(v).CopyTo(b,0);Marshal.Copy(b,0,(IntPtr)(long)a,260);}
  static float F(ulong a){return BitConverter.ToSingle(BitConverter.GetBytes(Marshal.ReadInt32((IntPtr)(long)a)),0);}static void F(ulong a,float v){I(a,BitConverter.ToInt32(BitConverter.GetBytes(v),0));}
  static void Need(bool b,string s){if(!b)throw new Exception(s);}
- static IntPtr Code(byte[] b){var p=VirtualAlloc(IntPtr.Zero,(UIntPtr)4096,0x3000,4);Need(p!=IntPtr.Zero,"Allocate mock callback");code.Add(p);Marshal.Copy(b,0,p,b.Length);uint old;Need(VirtualProtect(p,(UIntPtr)4096,0x20,out old),"Protect mock callback");return p;}
+ static IntPtr Code(byte[] b){Need(b.Length<=4096,"Callback fits allocated page");var p=VirtualAlloc(IntPtr.Zero,(UIntPtr)4096,0x3000,4);Need(p!=IntPtr.Zero,"Allocate mock callback");code.Add(p);Marshal.Copy(b,0,p,b.Length);uint old;Need(VirtualProtect(p,(UIntPtr)4096,0x20,out old),"Protect mock callback");return p;}
  static Gate Predicate(ulong session,ulong map,ulong root,ulong model,bool display){var c=new List<byte>();var denied=new List<int>();if(display)SC2DisplayGate.Emit(c,denied,session,map,root);else SC2HubGate.Emit(c,denied,session,map,root,model,1);SC2HubGate.B(c,"B8 01 00 00 00 C3");SC2CampaignGate.Resolve(c,denied,c.Count);SC2HubGate.B(c,"31 C0 C3");return (Gate)Marshal.GetDelegateForFunctionPointer(Code(c.ToArray()),typeof(Gate));}
  public static void Run(){try{
   ulong session=New(8),manager=New(0x68),info=New(0x1ed0),map=New(260),root=New(8),sceneManager=New(0x1b30),scene=New(0x558),bundle=New(0x18),camera=New(0x10),render=New(0x18),model=New(0x160),actor=New(0x48),name=New(260),entry=New(0x78),definition=New(0x80),state=New(0x40);
@@ -23,12 +23,12 @@ public static class HubCameraTests {
   foreach(var path in new[]{"Assets/StoryModeSets/Terran/SM_HyperionLab.m3","assets\\storymodesets\\zerg\\leviathan.m3","ASSETS/STORYMODESETS/Protoss/Spear.m3","Assets/StoryModeSets/Terran/NovaShip.m3"}){S(name,path);Need(SC2HubGate.Matches(false,"",path),"Managed hub classification");expect(1,1,"Hub species paths");}
   I(info+0x1ec8,2);expect(0,0,"Online session rejected");I(info+0x1ec8,0);
   foreach(var path in new[]{"Maps/Campaign/Liberty/Level.SC2Map","Campaign/Swarm/Level.SC2Map"}){S(map,path);Need(!SC2HubGate.Matches(false,path,"Assets/StoryModeSets/Terran/Lab.m3"),"Managed level rejected");expect(0,1,"Mission resolution remains allowed; camera correction denied");}
-  foreach(var path in new[]{"Maps/Campaign/TStory01.SC2Map","Campaign/TStory01.SC2Map","MAPS\\CAMPAIGN\\TSTORY01.SC2MAP"}){
+  foreach(var path in new[]{"Maps/Campaign/TStory01.SC2Map","Campaign/TStory01.SC2Map","MAPS\\CAMPAIGN\\TSTORY01.SC2MAP","Maps/Campaign/Swarm/ZStoryChar.SC2Map","Campaign/Swarm/ZStoryExpedition.SC2Map","MAPS\\CAMPAIGN\\SWARM\\ZSTORYZERUS.SC2MAP"}){
    S(map,path);Need(SC2HubGate.Matches(false,path,"assets/storymodesets/terran/bridge.m3"),"Managed return-to-hub classification");expect(1,1,"Return-to-hub map and camera accepted");
    I(info+0x1ec8,2);expect(0,0,"Online story map rejected");I(info+0x1ec8,0);
    S(name,"assets/units/terran/marine.m3");expect(0,1,"Story map still requires hub model");S(name,"assets/storymodesets/terran/bridge.m3");
   }
-  foreach(var path in new[]{"Maps/Campaign/TStory01.SC2Map.extra","Maps/Campaign/TStory010.SC2Map","Maps/Campaign/TZeratul04.SC2Map"}){S(map,path);expect(0,1,"Other map names do not enable hub framing");}
+  foreach(var path in new[]{"Maps/Campaign/TStory01.SC2Map.extra","Maps/Campaign/TStory010.SC2Map","Maps/Campaign/Swarm/ZStoryZerus.SC2Map.extra","Maps/Campaign/Swarm/ZStoryChar01.SC2Map","Maps/Campaign/TZeratul04.SC2Map"}){S(map,path);expect(0,1,"Other map names do not enable hub framing");}
   S(map,"Maps/Multiplayer/Test.SC2Map");expect(0,0,"Noncampaign map rejected");S(map,"");
   foreach(var path in new[]{"Assets/Units/Marine.m3","prefix/Assets/StoryModeSets/Lab.m3",""}){S(name,path);expect(0,0,"Unrecognized model rejected");}
   var unterminated=new byte[260];for(int i=0;i<260;i++)unterminated[i]=(byte)'a';Encoding.ASCII.GetBytes("assets/storymodesets/").CopyTo(unterminated,0);Marshal.Copy(unterminated,0,(IntPtr)(long)name,260);expect(0,0,"Unterminated asset rejected");S(name,"assets/storymodesets/terran/lab.m3");
@@ -61,7 +61,7 @@ public static class HubCameraTests {
   }
   // Replay mission -> named hub -> mission -> empty-path hub on the same callback.
   I(state+0x28,0);F(state+0x1c,3440f/1440f);I(state,2);tick=1;
-  foreach(string path in new[]{"Maps/Campaign/TZeratul04.SC2Map","Maps/Campaign/TStory01.SC2Map","Maps/Campaign/TStory01.SC2Map","Maps/Campaign/Liberty/Level.SC2Map",""}){
+  foreach(string path in new[]{"Maps/Campaign/TZeratul04.SC2Map","Maps/Campaign/TStory01.SC2Map","Maps/Campaign/Swarm/ZStoryZerus.SC2Map","Maps/Campaign/Swarm/ZStoryChar.SC2Map","Campaign/Swarm/ZStoryExpedition.SC2Map","Maps/Campaign/Liberty/Level.SC2Map",""}){
    S(map,path);update((IntPtr)(long)entry,5);bool isHub=SC2HubGate.HubMap(path);
    Need(Marshal.ReadInt32((IntPtr)(long)(definition+0x24))==(isHub?1:0),"Mission/hub transition camera convention");
    if(isHub)Need(Math.Abs(F(entry+0x38)-values[1])>.01,"Expanded resumes after mission");else Need(Math.Abs(F(entry+0x38)-values[1])<.000001,"Mission camera remains unchanged");

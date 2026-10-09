@@ -30,7 +30,7 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyDescription("Single-player campaign display helper")]
 
-[assembly: AssemblyVersion("1.9.0.0")]
+[assembly: AssemblyVersion("1.9.1.0")]
 
 static class Engine {
 
